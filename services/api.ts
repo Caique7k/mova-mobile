@@ -12,6 +12,20 @@ export class ApiError extends Error {
   }
 }
 
+let authToken: string | null = null;
+
+export function setAuthToken(token: string | null) {
+  authToken = token;
+}
+
+export function clearAuthToken() {
+  authToken = null;
+}
+
+export function getAuthToken() {
+  return authToken;
+}
+
 async function parseJson(response: Response) {
   const text = await response.text();
   if (!text) return null;
@@ -34,9 +48,7 @@ function timeoutPromise<T>(promise: Promise<T>, ms = DEFAULT_TIMEOUT_MS) {
     }, ms);
   });
 
-  return Promise.race([promise, timeout]).finally(() =>
-    clearTimeout(timeoutId),
-  );
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -44,16 +56,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const maybeResponse = await timeoutPromise(
     fetch(url, {
+      credentials: options.credentials ?? "include",
       headers: {
         "Content-Type": "application/json",
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         ...(options.headers || {}),
       },
       ...options,
-    }),
+    })
   );
 
   if (!(maybeResponse instanceof Response)) {
-    throw new ApiError(0, "Resposta inválida do servidor", maybeResponse);
+    throw new ApiError(0, "Resposta invalida do servidor", maybeResponse);
   }
 
   const response = maybeResponse;
