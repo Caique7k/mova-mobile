@@ -4,7 +4,7 @@ import { LucideIcon } from "@/components/ui/lucide-icon";
 import { API_BASE_URL } from "@/constants/api";
 import { useAuth } from "@/contexts/auth-context";
 import { ApiError } from "@/services/api";
-import { checkHealth } from "@/services/auth";
+import { canManageCompany, checkHealth, extractSessionRoles } from "@/services/auth";
 import {
   Activity,
   Building2,
@@ -105,6 +105,8 @@ function InfoCard({
 export default function CompanyScreen() {
   const router = useRouter();
   const { company, session, signOut, user } = useAuth();
+  const canViewCompanyAdmin = canManageCompany(session);
+  const sessionRoles = extractSessionRoles(session);
   const [loading, setLoading] = useState(false);
   const [healthMessage, setHealthMessage] = useState("Consultando backend...");
   const [healthTone, setHealthTone] = useState<"error" | "info" | "success">(
@@ -149,6 +151,42 @@ export default function CompanyScreen() {
       : healthTone === "error"
         ? { backgroundColor: "#fef2f2", color: "#b91c1c" }
         : { backgroundColor: "#eff6ff", color: "#1d4ed8" };
+
+  if (!canViewCompanyAdmin) {
+    return (
+      <SafeAreaView className="flex-1 bg-background-50">
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
+          <View className="gap-5">
+            <PlatformHeader
+              title="Acesso administrativo"
+              subtitle="No mobile, a area Empresa segue a mesma regra do web e fica disponivel apenas para perfis administrativos da empresa."
+              detail={user?.email ?? "Sessao autenticada"}
+              onSignOut={handleLogout}
+            />
+
+            <View className="rounded-[28px] bg-red-50 px-5 py-5">
+              <Text className="text-xs font-semibold uppercase tracking-[1.5px] text-red-700">
+                Acesso restrito
+              </Text>
+              <Text className="mt-2 text-2xl font-bold text-red-900">
+                Esta area e exclusiva para ADMIN.
+              </Text>
+              <Text className="mt-2 text-sm leading-6 text-red-700">
+                Perfis como DRIVER, COORDINATOR, USER e PLATFORM_ADMIN nao
+                recebem esta aba no fluxo normal e, se entrarem por URL, o app
+                bloqueia a visualizacao.
+              </Text>
+              {sessionRoles.length > 0 && (
+                <Text className="mt-3 text-xs font-semibold uppercase tracking-[1.5px] text-red-600">
+                  Perfis encontrados: {sessionRoles.join(", ")}
+                </Text>
+              )}
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-background-50">

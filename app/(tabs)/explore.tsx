@@ -1,112 +1,174 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { PlatformHeader } from "@/components/platform-header";
+import { LucideIcon } from "@/components/ui/lucide-icon";
+import { useAuth } from "@/contexts/auth-context";
+import {
+  extractSessionRoles,
+  getPrimarySessionRole,
+  shouldShowRoleHub,
+} from "@/services/auth";
+import { useRouter } from "expo-router";
+import { Building2, Compass, CreditCard, LogOut, MapPinned, User } from "lucide";
+import { ScrollView, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
-
-export default function TabTwoScreen() {
+function InfoCard({
+  description,
+  icon,
+  title,
+}: {
+  description: string;
+  icon: Parameters<typeof LucideIcon>[0]["icon"];
+  title: string;
+}) {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+    <View className="rounded-[28px] border border-outline-200 bg-background-0 px-5 py-5">
+      <View className="flex-row items-start gap-4">
+        <View className="rounded-2xl bg-tertiary-50 p-3">
+          <LucideIcon color="#b45309" icon={icon} size={20} />
+        </View>
+        <View className="flex-1">
+          <Text className="text-base font-semibold text-typography-950">
+            {title}
+          </Text>
+          <Text className="mt-2 text-sm leading-6 text-typography-600">
+            {description}
+          </Text>
+        </View>
+      </View>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-});
+export default function ExploreScreen() {
+  const router = useRouter();
+  const { company, session, signOut, user } = useAuth();
+  const primaryRole = getPrimarySessionRole(session);
+  const roles = extractSessionRoles(session);
+  const isRoleHub = shouldShowRoleHub(session);
+
+  async function handleLogout() {
+    await signOut();
+    router.replace("/login");
+  }
+
+  const title =
+    primaryRole === "PLATFORM_ADMIN" ? "Empresas da plataforma" : "Area do aluno";
+  const subtitle =
+    primaryRole === "PLATFORM_ADMIN"
+      ? "O mobile reconhece o perfil da plataforma, mas a gestao multiempresa continua priorizada no painel web."
+      : "As funcoes do app do aluno entram nos proximos passos. Por enquanto, esta area centraliza o contexto da sua conta.";
+
+  if (!isRoleHub) {
+    return (
+      <SafeAreaView className="flex-1 bg-background-50">
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
+          <View className="gap-5">
+            <PlatformHeader
+              title="Area complementar"
+              subtitle="Esta rota fica reservada para PLATFORM_ADMIN e USER no mobile, seguindo a regra definida para a navegacao por perfil."
+              detail={user?.email ?? "Sessao autenticada"}
+              onSignOut={handleLogout}
+            />
+
+            <View className="rounded-[28px] bg-red-50 px-5 py-5">
+              <Text className="text-xs font-semibold uppercase tracking-[1.5px] text-red-700">
+                Acesso restrito
+              </Text>
+              <Text className="mt-2 text-2xl font-bold text-red-900">
+                Esta area nao pertence ao seu perfil.
+              </Text>
+              <Text className="mt-2 text-sm leading-6 text-red-700">
+                ADMIN, DRIVER e COORDINATOR usam as areas operacionais do app.
+                Se esta tela foi aberta manualmente, o mobile manteve a regra do
+                web e bloqueou o conteudo.
+              </Text>
+              {roles.length > 0 && (
+                <Text className="mt-3 text-xs font-semibold uppercase tracking-[1.5px] text-red-600">
+                  Perfis encontrados: {roles.join(", ")}
+                </Text>
+              )}
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView className="flex-1 bg-background-50">
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
+        <View className="gap-5">
+          <PlatformHeader
+            title={title}
+            subtitle={subtitle}
+            detail={user?.email ?? "Sessao autenticada"}
+            onSignOut={handleLogout}
+          />
+
+          <View className="rounded-[28px] bg-background-0 px-5 py-5">
+            <Text className="text-xs font-semibold uppercase tracking-[1.5px] text-typography-500">
+              Perfil reconhecido
+            </Text>
+            <Text className="mt-2 text-[28px] font-bold leading-9 text-typography-950">
+              {primaryRole ?? "Perfil nao identificado"}
+            </Text>
+            <Text className="mt-2 text-sm leading-6 text-typography-600">
+              {roles.length > 0
+                ? `Perfis encontrados na sessao: ${roles.join(", ")}.`
+                : "Nenhum perfil explicito veio na sessao; o app segue em modo de compatibilidade."}
+            </Text>
+          </View>
+
+          {primaryRole === "PLATFORM_ADMIN" ? (
+            <>
+              <InfoCard
+                description="No web, este perfil entra pela area de Empresas. No mobile, essa gestao ainda nao ganhou telas dedicadas."
+                icon={Building2}
+                title="Gestao multiempresa"
+              />
+              <InfoCard
+                description="Enquanto isso, use o painel web para cadastro, operacao e configuracoes mais amplas da plataforma."
+                icon={Compass}
+                title="Melhor experiencia no web"
+              />
+            </>
+          ) : (
+            <>
+              <InfoCard
+                description="Rastreamento do transporte, presenca e notificacoes entram nos proximos passos do app do aluno."
+                icon={MapPinned}
+                title="Rastreamento"
+              />
+              <InfoCard
+                description="Fluxos como boleto, carteira digital e acompanhamento pessoal ficam concentrados aqui quando as proximas etapas forem liberadas."
+                icon={CreditCard}
+                title="Servicos do aluno"
+              />
+            </>
+          )}
+
+          <View className="rounded-[28px] bg-background-0 px-5 py-5">
+            <View className="flex-row items-center gap-3">
+              <LucideIcon color="#475569" icon={User} size={18} />
+              <Text className="text-sm leading-6 text-typography-700">
+                Usuario: {user?.name ?? user?.email ?? "Nao identificado"}
+              </Text>
+            </View>
+            <View className="mt-3 flex-row items-center gap-3">
+              <LucideIcon color="#475569" icon={Building2} size={18} />
+              <Text className="text-sm leading-6 text-typography-700">
+                Empresa: {company?.name ?? "Nao vinculada"}
+              </Text>
+            </View>
+            <View className="mt-3 flex-row items-center gap-3">
+              <LucideIcon color="#dc2626" icon={LogOut} size={18} />
+              <Text className="text-sm leading-6 text-typography-700">
+                O botao de sair continua disponivel no topo desta tela.
+              </Text>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}

@@ -42,6 +42,25 @@ export type AuthSession = {
   user: AuthUser;
 };
 
+export type UserRole =
+  | "PLATFORM_ADMIN"
+  | "ADMIN"
+  | "DRIVER"
+  | "USER"
+  | "COORDINATOR";
+
+const companyAdminRoles = ["ADMIN"] as const;
+const operationsRoles = ["ADMIN", "COORDINATOR", "DRIVER"] as const;
+const platformAdminRoles = ["PLATFORM_ADMIN"] as const;
+const studentRoles = ["USER"] as const;
+const rolePriority: UserRole[] = [
+  "PLATFORM_ADMIN",
+  "ADMIN",
+  "COORDINATOR",
+  "DRIVER",
+  "USER",
+];
+
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -57,6 +76,150 @@ function asString(value: unknown): string | null {
   }
 
   return null;
+}
+
+function normalizeRoleName(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.toUpperCase().replace(/^ROLE_/, "");
+}
+
+function uniqueStrings(values: string[]) {
+  return values.filter((value, index, list) => list.indexOf(value) === index);
+}
+
+function parseRoleCandidate(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return uniqueStrings(value.flatMap((item) => parseRoleCandidate(item)));
+  }
+
+  if (typeof value === "string") {
+    return uniqueStrings(
+      value
+        .split(/[\s,;|]+/)
+        .map((part) => normalizeRoleName(part))
+        .filter((part): part is string => Boolean(part)),
+    );
+  }
+
+  if (!isRecord(value)) {
+    return [];
+  }
+
+  return uniqueStrings(
+    [
+      value.role,
+      value.roles,
+      value.perfil,
+      value.perfis,
+      value.name,
+      value.code,
+      value.slug,
+      value.value,
+      value.label,
+    ].flatMap((item) => parseRoleCandidate(item)),
+  );
+}
+
+export function extractSessionRoles(session: AuthSession | null) {
+  if (!session) {
+    return [];
+  }
+
+  const nestedRecords = collectNestedRecords([
+    session.user ?? null,
+    session.tokenPayload ?? null,
+  ]);
+
+  const roleCandidates = nestedRecords.flatMap((record) =>
+    [
+      record.role,
+      record.roles,
+      record.perfil,
+      record.perfis,
+      record.authority,
+      record.authorities,
+    ].flatMap((item) => parseRoleCandidate(item)),
+  );
+
+  return uniqueStrings(roleCandidates);
+}
+
+function hasSessionRole(
+  session: AuthSession | null,
+  allowedRoles: readonly UserRole[],
+  fallbackWhenMissingRoles = false,
+) {
+  const roles = extractSessionRoles(session);
+
+  if (roles.length === 0) {
+    return fallbackWhenMissingRoles;
+  }
+
+  return roles.some((role) =>
+    allowedRoles.includes(
+      role as UserRole,
+    ),
+  );
+}
+
+export function getPrimarySessionRole(session: AuthSession | null): UserRole | null {
+  const roles = extractSessionRoles(session) as UserRole[];
+
+  for (const role of rolePriority) {
+    if (roles.includes(role)) {
+      return role;
+    }
+  }
+
+  return null;
+}
+
+export function canViewOperations(session: AuthSession | null) {
+  return hasSessionRole(session, operationsRoles, true);
+}
+
+export function canManageCompany(session: AuthSession | null) {
+  return hasSessionRole(session, companyAdminRoles, false);
+}
+
+export function isPlatformAdmin(session: AuthSession | null) {
+  return hasSessionRole(session, platformAdminRoles, false);
+}
+
+export function isStudentUser(session: AuthSession | null) {
+  return hasSessionRole(session, studentRoles, false);
+}
+
+export function shouldShowRoleHub(session: AuthSession | null) {
+  const primaryRole = getPrimarySessionRole(session);
+  return primaryRole === "PLATFORM_ADMIN" || primaryRole === "USER";
+}
+
+export function canAccessDashboard(session: AuthSession | null) {
+  return canViewOperations(session);
+}
+
+export function getDefaultAuthorizedRoute(session: AuthSession | null) {
+  const primaryRole = getPrimarySessionRole(session);
+
+  if (primaryRole === "PLATFORM_ADMIN" || primaryRole === "USER") {
+    return "/(tabs)/explore" as const;
+  }
+
+  if (canViewOperations(session)) {
+    return "/(tabs)" as const;
+  }
+
+  if (canManageCompany(session)) {
+    return "/(tabs)/empresa" as const;
+  }
+
+  return "/(tabs)/explore" as const;
 }
 
 function getFirstString(source: JsonRecord, keys: string[]): string | null {
