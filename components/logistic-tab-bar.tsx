@@ -14,6 +14,8 @@ type FluidTabOption = BottomTabBarProps["descriptors"][string]["options"] & {
   href?: string | null;
 };
 
+const DEFAULT_TINT_COLOR = "#FC7C3A";
+
 function getTabLabel(options: FluidTabOption, routeName: string) {
   if (typeof options.tabBarLabel === "string") {
     return options.tabBarLabel;
@@ -46,6 +48,11 @@ export function LogisticTabBar({
     visibleRoutes.findIndex((route) => route.key === state.routes[state.index]?.key),
     0,
   );
+  const selectedRoute = visibleRoutes[selectedVisibleIndex];
+  const selectedOptions = selectedRoute
+    ? (descriptors[selectedRoute.key]?.options as FluidTabOption | undefined)
+    : undefined;
+  const tintColor = selectedOptions?.tabBarActiveTintColor ?? DEFAULT_TINT_COLOR;
 
   const values = useMemo(() => {
     return visibleRoutes.map((route) => {
@@ -129,7 +136,7 @@ export function LogisticTabBar({
             void handlePress(tabIndex);
           }}
           selectedTab={selectedVisibleIndex}
-          tintColor="#6d5dfc"
+          tintColor={tintColor}
           values={values}
         />
       </View>

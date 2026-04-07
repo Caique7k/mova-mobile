@@ -1,14 +1,24 @@
-import { useAuth } from "@/contexts/auth-context";
 import { LogisticTabBar } from "@/components/logistic-tab-bar";
+import { LucideIcon } from "@/components/ui/lucide-icon";
+import { useAuth } from "@/contexts/auth-context";
 import {
   canManageCompany,
   canViewOperations,
   getPrimarySessionRole,
   shouldShowRoleHub,
 } from "@/services/auth";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Tabs } from "expo-router";
+import {
+  Building,
+  Building2,
+  CircleUser,
+  LayoutDashboard,
+  LayoutGrid,
+  UserRound,
+} from "lucide";
 import React from "react";
+
+const TAB_ACCENT_COLOR = "#FC7C3A";
 
 export default function TabLayout() {
   const { session } = useAuth();
@@ -16,11 +26,12 @@ export default function TabLayout() {
   const showCompanyTab = canManageCompany(session);
   const showRoleHubTab = shouldShowRoleHub(session);
   const primaryRole = getPrimarySessionRole(session);
-  const roleHubTitle = primaryRole === "PLATFORM_ADMIN"
-    ? "Empresas"
-    : primaryRole === "USER"
-      ? "Aluno"
-      : "Perfil";
+  const roleHubTitle =
+    primaryRole === "PLATFORM_ADMIN"
+      ? "Empresas"
+      : primaryRole === "USER"
+        ? "Aluno"
+        : "Perfil";
 
   return (
     <Tabs
@@ -30,7 +41,7 @@ export default function TabLayout() {
         sceneStyle: {
           backgroundColor: "#f8fafc",
         },
-        tabBarActiveTintColor: "#6d5dfc",
+        tabBarActiveTintColor: TAB_ACCENT_COLOR,
         tabBarHideOnKeyboard: true,
         tabBarInactiveTintColor: "#374151",
       }}
@@ -40,11 +51,12 @@ export default function TabLayout() {
         options={{
           href: showDashboardTab ? undefined : null,
           title: "Dashboard",
-          tabBarIcon: ({ color, focused }) => (
-            <MaterialIcons
+          tabBarIcon: ({ color, focused, size }) => (
+            <LucideIcon
               color={color}
-              name={focused ? "dashboard" : "dashboard-customize"}
-              size={24}
+              icon={focused ? LayoutDashboard : LayoutGrid}
+              size={size}
+              strokeWidth={focused ? 2.4 : 2}
             />
           ),
         }}
@@ -54,11 +66,12 @@ export default function TabLayout() {
         options={{
           href: showCompanyTab ? undefined : null,
           title: "Empresa",
-          tabBarIcon: ({ color, focused }) => (
-            <MaterialIcons
+          tabBarIcon: ({ color, focused, size }) => (
+            <LucideIcon
               color={color}
-              name={focused ? "business" : "apartment"}
-              size={24}
+              icon={focused ? Building2 : Building}
+              size={size}
+              strokeWidth={focused ? 2.4 : 2}
             />
           ),
         }}
@@ -68,19 +81,20 @@ export default function TabLayout() {
         options={{
           href: showRoleHubTab ? undefined : null,
           title: roleHubTitle,
-          tabBarIcon: ({ color, focused }) => (
-            <MaterialIcons
+          tabBarIcon: ({ color, focused, size }) => (
+            <LucideIcon
               color={color}
-              name={
+              icon={
                 primaryRole === "PLATFORM_ADMIN"
                   ? focused
-                    ? "business"
-                    : "apartment"
+                    ? Building2
+                    : Building
                   : focused
-                    ? "person"
-                    : "person-outline"
+                    ? UserRound
+                    : CircleUser
               }
-              size={24}
+              size={size}
+              strokeWidth={focused ? 2.4 : 2}
             />
           ),
         }}
