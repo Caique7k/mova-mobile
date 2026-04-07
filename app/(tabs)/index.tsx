@@ -458,9 +458,8 @@ export default function Home() {
                   <View className="flex-row items-center gap-3">
                     <LucideIcon color="#b45309" icon={Building2} size={18} />
                     <Text className="flex-1 text-sm leading-6 text-tertiary-900">
-                      A aba Empresa continua disponivel na barra inferior para
-                      concentrar detalhes cadastrais, sessao autenticada e status
-                      do backend.
+                      A aba Cadastros concentra os modulos administrativos da
+                      empresa, com o cadastro de onibus ja conectado ao backend.
                     </Text>
                   </View>
                 </View>

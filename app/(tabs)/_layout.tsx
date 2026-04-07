@@ -12,8 +12,10 @@ import {
   Building,
   Building2,
   CircleUser,
+  FolderKanban,
   LayoutDashboard,
   LayoutGrid,
+  NotebookPen,
   UserRound,
 } from "lucide";
 import React from "react";
@@ -65,11 +67,11 @@ export default function TabLayout() {
         name="empresa"
         options={{
           href: showCompanyTab ? undefined : null,
-          title: "Empresa",
+          title: "Cadastros",
           tabBarIcon: ({ color, focused, size }) => (
             <LucideIcon
               color={color}
-              icon={focused ? Building2 : Building}
+              icon={focused ? FolderKanban : NotebookPen}
               size={size}
               strokeWidth={focused ? 2.4 : 2}
             />
