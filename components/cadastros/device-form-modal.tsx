@@ -126,6 +126,12 @@ export function DeviceFormModal({
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (busOptions.length === 0) {
+      setIsBusComboboxOpen(false);
+    }
+  }, [busOptions.length]);
+
   return (
     <Modal
       animationType="slide"

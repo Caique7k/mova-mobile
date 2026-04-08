@@ -1,4 +1,4 @@
-import { BusFront, Cpu, GraduationCap } from "lucide";
+import { BusFront, Cpu, GraduationCap, UsersRound } from "lucide";
 
 import type { CatalogSection } from "@/components/cadastros/types";
 
@@ -16,6 +16,14 @@ export const catalogSections: CatalogSection[] = [
     icon: GraduationCap,
     key: "students",
     label: "Alunos",
+    status: "Integrado",
+    statusTone: "live",
+  },
+  {
+    description: "CRUD real conectado ao backend de usuarios da empresa.",
+    icon: UsersRound,
+    key: "users",
+    label: "Usuarios",
     status: "Integrado",
     statusTone: "live",
   },

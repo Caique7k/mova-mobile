@@ -270,7 +270,7 @@ export function UniHubSection({
           Vincular ou editar
         </Text>
         <Text className="mt-2 text-sm leading-6 text-typography-600">
-          O cadastro do UniHub depende do codigo temporario gerado no IoT. Depois do vinculo, voce pode editar nome e trocar o onibus quando precisar.
+          O cadastro do UniHub depende do codigo temporario gerado no IoT e de um onibus ja cadastrado. Se ainda nao existir onibus na empresa, cadastre o onibus primeiro e depois volte para vincular o device.
         </Text>
 
         <View className="mt-4 flex-row gap-3">
@@ -454,7 +454,7 @@ export function UniHubSection({
                   Nenhum device encontrado
                 </Text>
                 <Text className="mt-2 text-sm leading-6 text-typography-600">
-                  Solicite o pairing no IoT, use o codigo temporario e vincule o primeiro device da empresa por aqui.
+                  Solicite o pairing no IoT, use o codigo temporario e vincule o primeiro device da empresa por aqui. Se nao houver onibus cadastrado, cadastre o onibus antes.
                 </Text>
               </View>
             </View>

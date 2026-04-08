@@ -1,6 +1,6 @@
 import type { LucideIcon } from "@/components/ui/lucide-icon";
 
-export type CatalogSectionKey = "buses" | "students" | "unihub";
+export type CatalogSectionKey = "buses" | "students" | "unihub" | "users";
 
 export type CatalogSection = {
   description: string;

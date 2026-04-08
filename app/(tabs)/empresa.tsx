@@ -2,10 +2,14 @@ import { BusesSection } from "@/components/cadastros/buses-section";
 import { catalogSections } from "@/components/cadastros/config";
 import { StudentsSection } from "@/components/cadastros/students-section";
 import { UniHubSection } from "@/components/cadastros/unihub-section";
+import { UsersSection } from "@/components/cadastros/users-section";
 import { CatalogNavItem } from "@/components/cadastros/ui";
 import type { CatalogSectionKey } from "@/components/cadastros/types";
 import { useAuth } from "@/contexts/auth-context";
-import { canManageCompany, extractSessionRoles } from "@/services/auth";
+import {
+  canManageCompany,
+  extractSessionRoles,
+} from "@/services/auth";
 import { getApiErrorMessage } from "@/services/api";
 import {
   createBus,
@@ -35,6 +39,18 @@ import {
   type StudentStatusFilter,
 } from "@/services/students";
 import { hideAppToast, showAppToast } from "@/services/toast";
+import {
+  createUser,
+  deactivateUsers,
+  fetchUserStudentCandidates,
+  fetchUsers,
+  updateUser,
+  type ManagedUserRole,
+  type UserRecord,
+  type UserRoleFilter,
+  type UserStatusFilter,
+  type UserStudentCandidate,
+} from "@/services/users";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -45,6 +61,8 @@ const MERCOSUL_PLATE_PATTERN = /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/;
 const DEVICE_PAIRING_CODE_PATTERN = /^[A-Z0-9-]{4,20}$/;
 const STUDENT_LOCAL_EMAIL_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/i;
 const STUDENT_FULL_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+const USER_EMAIL_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*@[a-z0-9.-]+\.[a-z]{2,}$/i;
+const USER_PASSWORD_MIN_LENGTH = 6;
 
 type FeedbackTone = "error" | "success";
 
@@ -71,11 +89,28 @@ type DeviceFormErrors = {
 
 type DeviceFormMode = "edit" | "link";
 
+type UserFormErrors = {
+  email?: string;
+  general?: string;
+  name?: string;
+  password?: string;
+  studentId?: string;
+};
+
 type StudentRfidFlowTarget = {
   fromCreation: boolean;
   id: string;
   name: string;
 };
+
+function mapUserStudentToCandidate(student: NonNullable<UserRecord["student"]>) {
+  return {
+    email: student.email,
+    id: student.id,
+    name: student.name,
+    registration: student.registration,
+  };
+}
 
 function sanitizePlate(value: string) {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -103,6 +138,14 @@ function sanitizeDeviceName(value: string) {
 
 function sanitizePairingCode(value: string) {
   return value.toUpperCase().replace(/\s+/g, "");
+}
+
+function sanitizeUserName(value: string) {
+  return value.replace(/\s+/g, " ");
+}
+
+function sanitizeUserEmail(value: string) {
+  return value.replace(/\s+/g, "").toLowerCase();
 }
 
 function getDeviceName(device: Pick<Device, "bus" | "code" | "name">) {
@@ -151,6 +194,25 @@ function getDeviceFilterForVisibility(
   return "all";
 }
 
+function getUserFilterForVisibility(
+  isActive: boolean,
+  filter: UserStatusFilter,
+) {
+  if (filter === "all") {
+    return filter;
+  }
+
+  if ((filter === "active" && isActive) || (filter === "inactive" && !isActive)) {
+    return filter;
+  }
+
+  return "all";
+}
+
+function roleRequiresStudentLink(role: ManagedUserRole) {
+  return role === "USER" || role === "COORDINATOR";
+}
+
 async function requestBusPage(page: number, search: string) {
   return fetchBuses({
     page,
@@ -181,6 +243,21 @@ async function requestDevicePage(
     active,
     page,
     limit: PAGE_SIZE,
+    search: search || undefined,
+  });
+}
+
+async function requestUserPage(
+  page: number,
+  search: string,
+  active: UserStatusFilter,
+  role: UserRoleFilter,
+) {
+  return fetchUsers({
+    active,
+    page,
+    limit: PAGE_SIZE,
+    role,
     search: search || undefined,
   });
 }
@@ -274,7 +351,35 @@ export default function CompanyScreen() {
   const [isSavingDevice, setIsSavingDevice] = useState(false);
   const [deviceFormErrors, setDeviceFormErrors] = useState<DeviceFormErrors>({});
   const [deviceBusOptions, setDeviceBusOptions] = useState<Bus[]>([]);
+  const [hasLoadedDeviceBusOptions, setHasLoadedDeviceBusOptions] = useState(false);
   const [isLoadingDeviceBusOptions, setIsLoadingDeviceBusOptions] = useState(false);
+
+  const [users, setUsers] = useState<UserRecord[]>([]);
+  const [userPage, setUserPage] = useState(1);
+  const [userLastPage, setUserLastPage] = useState(1);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [userSearchInput, setUserSearchInput] = useState("");
+  const [appliedUserSearch, setAppliedUserSearch] = useState("");
+  const [userStatusFilter, setUserStatusFilter] = useState<UserStatusFilter>("all");
+  const [userRoleFilter, setUserRoleFilter] = useState<UserRoleFilter>("all");
+  const [userNameInput, setUserNameInput] = useState("");
+  const [userEmailInput, setUserEmailInput] = useState("");
+  const [userPasswordInput, setUserPasswordInput] = useState("");
+  const [userRoleInput, setUserRoleInput] = useState<ManagedUserRole>("ADMIN");
+  const [userActiveInput, setUserActiveInput] = useState(true);
+  const [userStudentIdInput, setUserStudentIdInput] = useState("");
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [isLinkedUserProfileLocked, setIsLinkedUserProfileLocked] = useState(false);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [isSavingUser, setIsSavingUser] = useState(false);
+  const [deactivatingUserId, setDeactivatingUserId] = useState<string | null>(null);
+  const [userFormErrors, setUserFormErrors] = useState<UserFormErrors>({});
+  const [userStudentCandidates, setUserStudentCandidates] = useState<
+    UserStudentCandidate[]
+  >([]);
+  const [isLoadingUserStudentCandidates, setIsLoadingUserStudentCandidates] =
+    useState(false);
 
   const visibleCapacity = buses.reduce((total, bus) => total + bus.capacity, 0);
 
@@ -310,6 +415,10 @@ export default function CompanyScreen() {
     setDeviceFormErrors({});
   }
 
+  function clearUserFormErrors() {
+    setUserFormErrors({});
+  }
+
   function resetBusForm() {
     setEditingBusId(null);
     setPlateInput("");
@@ -343,6 +452,19 @@ export default function CompanyScreen() {
     setDevicePairingCodeInput("");
     setDeviceBusIdInput("");
     clearDeviceFormErrors();
+  }
+
+  function resetUserForm() {
+    setEditingUserId(null);
+    setIsLinkedUserProfileLocked(false);
+    setUserNameInput("");
+    setUserEmailInput("");
+    setUserPasswordInput("");
+    setUserRoleInput("ADMIN");
+    setUserActiveInput(true);
+    setUserStudentIdInput("");
+    setUserStudentCandidates([]);
+    clearUserFormErrors();
   }
 
   function closeBusModal() {
@@ -390,6 +512,15 @@ export default function CompanyScreen() {
     resetDeviceForm();
   }
 
+  function closeUserModal() {
+    if (isSavingUser) {
+      return;
+    }
+
+    setIsUserModalOpen(false);
+    resetUserForm();
+  }
+
   function openCreateBusModal() {
     clearFeedback();
     resetBusForm();
@@ -403,8 +534,16 @@ export default function CompanyScreen() {
     setIsStudentModalOpen(true);
   }
 
+  function openCreateUserModal() {
+    clearFeedback();
+    resetUserForm();
+    setUserActiveInput(true);
+
+    setIsUserModalOpen(true);
+  }
+
   const ensureDeviceBusOptions = useCallback(async (force = false) => {
-    if (!force && deviceBusOptions.length > 0) {
+    if (!force && hasLoadedDeviceBusOptions) {
       return deviceBusOptions;
     }
 
@@ -413,6 +552,7 @@ export default function CompanyScreen() {
     try {
       const options = await fetchBusOptions(BUS_OPTIONS_LIMIT);
       setDeviceBusOptions(options);
+      setHasLoadedDeviceBusOptions(true);
       return options;
     } catch (error) {
       showFeedback(
@@ -423,7 +563,52 @@ export default function CompanyScreen() {
     } finally {
       setIsLoadingDeviceBusOptions(false);
     }
-  }, [deviceBusOptions, showFeedback]);
+  }, [deviceBusOptions, hasLoadedDeviceBusOptions, showFeedback]);
+
+  const ensureUserStudentCandidates = useCallback(
+    async (includeUserId?: string, force = false) => {
+      if (!force && userStudentCandidates.length > 0) {
+        return userStudentCandidates;
+      }
+
+      setIsLoadingUserStudentCandidates(true);
+
+      try {
+        const [candidateResponse, usersResponse] = await Promise.all([
+          fetchUserStudentCandidates(includeUserId),
+          fetchUsers({
+            active: "all",
+            limit: 1000,
+            page: 1,
+            role: "all",
+          }),
+        ]);
+        const takenStudentIds = new Set(
+          usersResponse.data
+            .map((user) => user.studentId)
+            .filter((studentId): studentId is string => Boolean(studentId)),
+        );
+        const candidates = candidateResponse.filter(
+          (candidate) => !takenStudentIds.has(candidate.id),
+        );
+
+        setUserStudentCandidates(candidates);
+        return candidates;
+      } catch (error) {
+        showFeedback(
+          "error",
+          getApiErrorMessage(
+            error,
+            "Nao foi possivel carregar os alunos disponiveis para usuario.",
+          ),
+        );
+        return [];
+      } finally {
+        setIsLoadingUserStudentCandidates(false);
+      }
+    },
+    [showFeedback, userStudentCandidates],
+  );
 
   async function openCreateDeviceModal() {
     clearFeedback();
@@ -451,6 +636,32 @@ export default function CompanyScreen() {
     setDeviceNameInput(device.name?.trim() ?? "");
     setDeviceBusIdInput(device.busId ?? options[0]?.id ?? "");
     setIsDeviceModalOpen(true);
+  }
+
+  async function openEditUserModal(user: UserRecord) {
+    clearFeedback();
+    resetUserForm();
+    clearUserFormErrors();
+
+    const isLinkedUser = Boolean(user.studentId);
+    const shouldLoadCandidates = roleRequiresStudentLink(user.role) && !isLinkedUser;
+    const candidates =
+      isLinkedUser && user.student
+        ? [mapUserStudentToCandidate(user.student)]
+        : shouldLoadCandidates
+          ? await ensureUserStudentCandidates(undefined, true)
+          : [];
+
+    setEditingUserId(user.id);
+    setIsLinkedUserProfileLocked(isLinkedUser);
+    setUserStudentCandidates(candidates);
+    setUserNameInput(user.name);
+    setUserEmailInput(user.email);
+    setUserPasswordInput("");
+    setUserRoleInput(user.role);
+    setUserActiveInput(user.active);
+    setUserStudentIdInput(user.studentId ?? candidates[0]?.id ?? "");
+    setIsUserModalOpen(true);
   }
 
   function openStudentRfidModal(
@@ -613,8 +824,65 @@ export default function CompanyScreen() {
     };
   }
 
+  function validateUserForm() {
+    const nextErrors: UserFormErrors = {};
+    const expectedDomain = companyEmailDomain?.replace(/^@/, "").toLowerCase() ?? null;
+    const name = userNameInput.trim().replace(/\s+/g, " ");
+    const email = userEmailInput.trim().toLowerCase();
+    const password = userPasswordInput.trim();
+    const studentId = userStudentIdInput.trim();
+    const role = userRoleInput;
+
+    if (roleRequiresStudentLink(role)) {
+      if (!studentId) {
+        nextErrors.studentId =
+          "Selecione o aluno que sera vinculado ao usuario deste perfil.";
+      }
+    } else {
+      if (!name) {
+        nextErrors.name = "Informe o nome do usuario.";
+      } else if (name.length < 3) {
+        nextErrors.name = "Digite pelo menos 3 caracteres para o nome.";
+      }
+
+      if (!email) {
+        nextErrors.email = "Informe o email do usuario.";
+      } else if (!USER_EMAIL_PATTERN.test(email)) {
+        nextErrors.email = "Use o formato nome.sobrenome@dominio-da-empresa.";
+      } else if (expectedDomain && !email.endsWith(`@${expectedDomain}`)) {
+        nextErrors.email = `O email deve usar o dominio da empresa (@${expectedDomain}).`;
+      }
+    }
+
+    if (!editingUserId) {
+      if (!password) {
+        nextErrors.password = "Defina a senha inicial do usuario.";
+      } else if (password.length < USER_PASSWORD_MIN_LENGTH) {
+        nextErrors.password = `Use pelo menos ${USER_PASSWORD_MIN_LENGTH} caracteres para a senha.`;
+      }
+    } else if (password && password.length < USER_PASSWORD_MIN_LENGTH) {
+      nextErrors.password = `Use pelo menos ${USER_PASSWORD_MIN_LENGTH} caracteres para a senha.`;
+    }
+
+    return {
+      email,
+      isValid: Object.keys(nextErrors).length === 0,
+      name,
+      nextErrors,
+      password,
+      role,
+      studentId,
+    };
+  }
+
   function selectSection(nextSection: CatalogSectionKey) {
-    if (isSavingBus || isSavingStudent || isLinkingStudentRfid || isSavingDevice) {
+    if (
+      isSavingBus ||
+      isSavingStudent ||
+      isLinkingStudentRfid ||
+      isSavingDevice ||
+      isSavingUser
+    ) {
       return;
     }
 
@@ -623,6 +891,7 @@ export default function CompanyScreen() {
     closeStudentModal();
     closeStudentRfidModal();
     closeDeviceModal();
+    closeUserModal();
     setActiveSection(nextSection);
   }
 
@@ -685,6 +954,34 @@ export default function CompanyScreen() {
       );
     } finally {
       setIsLoadingDevices(false);
+    }
+  }
+
+  async function loadUsers(
+    nextPage = userPage,
+    nextSearch = appliedUserSearch,
+    nextStatus = userStatusFilter,
+    nextRole = userRoleFilter,
+  ) {
+    setIsLoadingUsers(true);
+
+    try {
+      const response = await requestUserPage(
+        nextPage,
+        nextSearch,
+        nextStatus,
+        nextRole,
+      );
+      setUsers(response.data);
+      setTotalUsers(response.total);
+      setUserLastPage(Math.max(response.lastPage, 1));
+    } catch (error) {
+      showFeedback(
+        "error",
+        getApiErrorMessage(error, "Nao foi possivel carregar os usuarios."),
+      );
+    } finally {
+      setIsLoadingUsers(false);
     }
   }
 
@@ -820,6 +1117,58 @@ export default function CompanyScreen() {
   ]);
 
   useEffect(() => {
+    if (!canViewCompanyAdmin || activeSection !== "users") {
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingUsers(true);
+
+    void requestUserPage(
+      userPage,
+      appliedUserSearch,
+      userStatusFilter,
+      userRoleFilter,
+    )
+      .then((response) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setUsers(response.data);
+        setTotalUsers(response.total);
+        setUserLastPage(Math.max(response.lastPage, 1));
+      })
+      .catch((error: unknown) => {
+        if (!isMounted) {
+          return;
+        }
+
+        showFeedback(
+          "error",
+          getApiErrorMessage(error, "Nao foi possivel carregar os usuarios."),
+        );
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingUsers(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    activeSection,
+    appliedUserSearch,
+    canViewCompanyAdmin,
+    showFeedback,
+    userPage,
+    userRoleFilter,
+    userStatusFilter,
+  ]);
+
+  useEffect(() => {
     if (!canViewCompanyAdmin || activeSection !== "unihub") {
       return;
     }
@@ -908,6 +1257,41 @@ export default function CompanyScreen() {
     await loadDevices(nextPage, nextSearch, nextFilter);
   }
 
+  async function refreshOrMoveUsers(
+    nextPage = userPage,
+    nextSearch = appliedUserSearch,
+    nextStatus = userStatusFilter,
+    nextRole = userRoleFilter,
+  ) {
+    let shouldWaitForEffect = false;
+
+    if (userPage !== nextPage) {
+      setUserPage(nextPage);
+      shouldWaitForEffect = true;
+    }
+
+    if (appliedUserSearch !== nextSearch) {
+      setAppliedUserSearch(nextSearch);
+      shouldWaitForEffect = true;
+    }
+
+    if (userStatusFilter !== nextStatus) {
+      setUserStatusFilter(nextStatus);
+      shouldWaitForEffect = true;
+    }
+
+    if (userRoleFilter !== nextRole) {
+      setUserRoleFilter(nextRole);
+      shouldWaitForEffect = true;
+    }
+
+    if (shouldWaitForEffect) {
+      return;
+    }
+
+    await loadUsers(nextPage, nextSearch, nextStatus, nextRole);
+  }
+
   async function handleSubmitBus() {
     const { capacity, isValid, nextErrors, plate } = validateBusForm();
 
@@ -930,6 +1314,7 @@ export default function CompanyScreen() {
         showFeedback("success", `Onibus ${plate} cadastrado com sucesso.`);
       }
 
+      setHasLoadedDeviceBusOptions(false);
       setIsBusModalOpen(false);
       resetBusForm();
       setBusSearchInput("");
@@ -1152,6 +1537,89 @@ export default function CompanyScreen() {
     }
   }
 
+  async function handleSubmitUser() {
+    const { email, isValid, name, nextErrors, password, role, studentId } =
+      validateUserForm();
+
+    if (!isValid) {
+      setUserFormErrors(nextErrors);
+      showFeedback("error", "Revise os campos destacados antes de salvar o usuario.");
+      return;
+    }
+
+    setIsSavingUser(true);
+    clearFeedback();
+    clearUserFormErrors();
+
+    try {
+      const nextVisibleFilter = getUserFilterForVisibility(
+        editingUserId ? userActiveInput : true,
+        userStatusFilter,
+      );
+
+      if (editingUserId) {
+        await updateUser(editingUserId, {
+          active: userActiveInput,
+          email: roleRequiresStudentLink(role) ? undefined : email,
+          name: roleRequiresStudentLink(role) ? undefined : name,
+          password: password || undefined,
+          role,
+          studentId: roleRequiresStudentLink(role) ? studentId : undefined,
+        });
+
+        showFeedback(
+          "success",
+          `Usuario ${roleRequiresStudentLink(role) ? "vinculado ao aluno" : name} atualizado com sucesso.`,
+        );
+      } else {
+        await createUser({
+          email: roleRequiresStudentLink(role) ? undefined : email,
+          name: roleRequiresStudentLink(role) ? undefined : name,
+          password,
+          role,
+          studentId: roleRequiresStudentLink(role) ? studentId : undefined,
+        });
+
+        showFeedback(
+          "success",
+          `Usuario ${roleRequiresStudentLink(role) ? "vinculado ao aluno" : name} cadastrado com sucesso.`,
+        );
+      }
+
+      setIsUserModalOpen(false);
+      resetUserForm();
+      setUserSearchInput("");
+      await refreshOrMoveUsers(1, "", nextVisibleFilter, userRoleFilter);
+    } catch (error) {
+      const message = getApiErrorMessage(error, "Nao foi possivel salvar o usuario.");
+      const lowered = message.toLowerCase();
+      const nextFormErrors: UserFormErrors = {
+        general: message,
+      };
+
+      if (lowered.includes("email") || lowered.includes("login") || lowered.includes("dominio")) {
+        nextFormErrors.email = message;
+      }
+
+      if (lowered.includes("senha")) {
+        nextFormErrors.password = message;
+      }
+
+      if (lowered.includes("aluno")) {
+        nextFormErrors.studentId = message;
+      }
+
+      if (lowered.includes("nome")) {
+        nextFormErrors.name = message;
+      }
+
+      showFeedback("error", message);
+      setUserFormErrors(nextFormErrors);
+    } finally {
+      setIsSavingUser(false);
+    }
+  }
+
   async function handleDeleteBus(bus: Bus) {
     setDeletingBusId(bus.id);
     clearFeedback();
@@ -1159,6 +1627,7 @@ export default function CompanyScreen() {
     try {
       await deleteBuses([bus.id]);
       showFeedback("success", `Onibus ${bus.plate} excluido com sucesso.`);
+      setHasLoadedDeviceBusOptions(false);
 
       if (editingBusId === bus.id) {
         resetBusForm();
@@ -1247,6 +1716,35 @@ export default function CompanyScreen() {
     }
   }
 
+  async function handleDeactivateUser(user: UserRecord) {
+    setDeactivatingUserId(user.id);
+    clearFeedback();
+
+    try {
+      await deactivateUsers([user.id]);
+      showFeedback("success", `Usuario ${user.name} desativado com sucesso.`);
+
+      if (editingUserId === user.id) {
+        resetUserForm();
+      }
+
+      const nextPage = userPage > 1 && users.length === 1 ? userPage - 1 : userPage;
+      await refreshOrMoveUsers(
+        nextPage,
+        appliedUserSearch,
+        userStatusFilter,
+        userRoleFilter,
+      );
+    } catch (error) {
+      showFeedback(
+        "error",
+        getApiErrorMessage(error, "Nao foi possivel desativar o usuario."),
+      );
+    } finally {
+      setDeactivatingUserId(null);
+    }
+  }
+
   function confirmDeleteBus(bus: Bus) {
     Alert.alert(
       "Excluir onibus",
@@ -1313,6 +1811,22 @@ export default function CompanyScreen() {
     );
   }
 
+  function confirmDeactivateUser(user: UserRecord) {
+    Alert.alert(
+      "Desativar usuario",
+      `Deseja desativar o usuario ${user.name}?`,
+      [
+        { style: "cancel", text: "Cancelar" },
+        {
+          text: "Desativar",
+          onPress: () => {
+            void handleDeactivateUser(user);
+          },
+        },
+      ],
+    );
+  }
+
   function startEditing(bus: Bus) {
     clearFeedback();
     clearBusFormErrors();
@@ -1336,6 +1850,10 @@ export default function CompanyScreen() {
 
   function startEditingDevice(device: Device) {
     void openEditDeviceModal(device);
+  }
+
+  function startEditingUser(user: UserRecord) {
+    void openEditUserModal(user);
   }
 
   function renderActiveSection() {
@@ -1492,6 +2010,123 @@ export default function CompanyScreen() {
           studentRegistrationInput={studentRegistrationInput}
           students={students}
           totalStudents={totalStudents}
+        />
+      );
+    }
+
+    if (activeSection === "users") {
+      return (
+        <UsersSection
+          appliedSearch={appliedUserSearch}
+          companyEmailDomain={companyEmailDomain}
+          currentRoleFilter={userRoleFilter}
+          currentStatusFilter={userStatusFilter}
+          editingUserId={editingUserId}
+          feedbackMessage={feedbackMessage}
+          feedbackTone={feedbackTone}
+          formErrorMessage={userFormErrors.general}
+          formErrors={userFormErrors}
+          isLoadingStudentCandidates={isLoadingUserStudentCandidates}
+          isLoadingUsers={isLoadingUsers}
+          isModalOpen={isUserModalOpen}
+          isSavingUser={isSavingUser || deactivatingUserId !== null}
+          lastPage={userLastPage}
+          onActiveInputChange={(value) => {
+            clearUserFormErrors();
+            setUserActiveInput(value);
+          }}
+          onCloseModal={closeUserModal}
+          onDeactivateUser={confirmDeactivateUser}
+          onEmailChange={(value) => {
+            clearUserFormErrors();
+            setUserEmailInput(sanitizeUserEmail(value));
+          }}
+          onNameChange={(value) => {
+            clearUserFormErrors();
+            setUserNameInput(sanitizeUserName(value));
+          }}
+          onOpenCreateModal={() => {
+            void openCreateUserModal();
+          }}
+          onPageChange={(nextPage) => {
+            void refreshOrMoveUsers(
+              nextPage,
+              appliedUserSearch,
+              userStatusFilter,
+              userRoleFilter,
+            );
+          }}
+          onPasswordChange={(value) => {
+            clearUserFormErrors();
+            setUserPasswordInput(value);
+          }}
+          onRefresh={() => {
+            void loadUsers(
+              userPage,
+              appliedUserSearch,
+              userStatusFilter,
+              userRoleFilter,
+            );
+          }}
+          onRoleFilterChange={(value) => {
+            clearFeedback();
+            void refreshOrMoveUsers(1, appliedUserSearch, userStatusFilter, value);
+          }}
+          onRoleInputChange={(value) => {
+            if (isLinkedUserProfileLocked) {
+              return;
+            }
+
+            clearUserFormErrors();
+            setUserRoleInput(value);
+
+            if (!roleRequiresStudentLink(value)) {
+              setUserStudentIdInput("");
+              return;
+            }
+
+            void ensureUserStudentCandidates(undefined, true).then(
+              (candidates) => {
+                if (!editingUserId && candidates.length === 1) {
+                  setUserStudentIdInput(candidates[0].id);
+                }
+              },
+            );
+          }}
+          onSearch={() => {
+            clearFeedback();
+            void refreshOrMoveUsers(
+              1,
+              userSearchInput.trim(),
+              userStatusFilter,
+              userRoleFilter,
+            );
+          }}
+          onStatusFilterChange={(value) => {
+            clearFeedback();
+            void refreshOrMoveUsers(1, appliedUserSearch, value, userRoleFilter);
+          }}
+          onStudentChange={(value) => {
+            clearUserFormErrors();
+            setUserStudentIdInput(value);
+          }}
+          onSubmit={() => {
+            void handleSubmitUser();
+          }}
+          onUserEdit={startEditingUser}
+          page={userPage}
+          searchInput={userSearchInput}
+          selectedStudentId={userStudentIdInput}
+          setSearchInput={setUserSearchInput}
+          isStudentLinkLocked={isLinkedUserProfileLocked}
+          studentCandidates={userStudentCandidates}
+          totalUsers={totalUsers}
+          userActiveInput={userActiveInput}
+          userEmailInput={userEmailInput}
+          userNameInput={userNameInput}
+          userPasswordInput={userPasswordInput}
+          userRoleInput={userRoleInput}
+          users={users}
         />
       );
     }
