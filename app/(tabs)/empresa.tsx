@@ -1,7 +1,8 @@
 import { BusesSection } from "@/components/cadastros/buses-section";
 import { catalogSections } from "@/components/cadastros/config";
 import { StudentsSection } from "@/components/cadastros/students-section";
-import { CatalogNavItem, PlaceholderSection } from "@/components/cadastros/ui";
+import { UniHubSection } from "@/components/cadastros/unihub-section";
+import { CatalogNavItem } from "@/components/cadastros/ui";
 import type { CatalogSectionKey } from "@/components/cadastros/types";
 import { useAuth } from "@/contexts/auth-context";
 import { canManageCompany, extractSessionRoles } from "@/services/auth";
@@ -9,10 +10,20 @@ import { getApiErrorMessage } from "@/services/api";
 import {
   createBus,
   deleteBuses,
+  fetchBusOptions,
   fetchBuses,
   updateBus,
   type Bus,
 } from "@/services/buses";
+import {
+  deactivateDevices,
+  fetchDevices,
+  linkDevice,
+  linkDeviceBus,
+  updateDeviceName,
+  type Device,
+  type DeviceStatusFilter,
+} from "@/services/devices";
 import { linkStudentRfid } from "@/services/rfid";
 import {
   createStudent,
@@ -24,13 +35,14 @@ import {
   type StudentStatusFilter,
 } from "@/services/students";
 import { hideAppToast, showAppToast } from "@/services/toast";
-import { Cpu } from "lucide";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const PAGE_SIZE = 5;
+const BUS_OPTIONS_LIMIT = 100;
 const MERCOSUL_PLATE_PATTERN = /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/;
+const DEVICE_PAIRING_CODE_PATTERN = /^[A-Z0-9-]{4,20}$/;
 const STUDENT_LOCAL_EMAIL_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/i;
 const STUDENT_FULL_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
@@ -49,6 +61,15 @@ type StudentFormErrors = {
   phone?: string;
   registration?: string;
 };
+
+type DeviceFormErrors = {
+  busId?: string;
+  general?: string;
+  name?: string;
+  pairingCode?: string;
+};
+
+type DeviceFormMode = "edit" | "link";
 
 type StudentRfidFlowTarget = {
   fromCreation: boolean;
@@ -76,9 +97,48 @@ function sanitizeStudentRfid(value: string) {
   return value.toUpperCase().replace(/\s+/g, "");
 }
 
+function sanitizeDeviceName(value: string) {
+  return value.replace(/\s+/g, " ");
+}
+
+function sanitizePairingCode(value: string) {
+  return value.toUpperCase().replace(/\s+/g, "");
+}
+
+function getDeviceName(device: Pick<Device, "bus" | "code" | "name">) {
+  if (device.name?.trim()) {
+    return device.name;
+  }
+
+  if (device.bus?.plate?.trim()) {
+    return device.bus.plate;
+  }
+
+  if (device.code?.trim()) {
+    return device.code;
+  }
+
+  return "device";
+}
+
 function getStudentFilterForVisibility(
   isActive: boolean,
   filter: StudentStatusFilter,
+) {
+  if (filter === "all") {
+    return filter;
+  }
+
+  if ((filter === "active" && isActive) || (filter === "inactive" && !isActive)) {
+    return filter;
+  }
+
+  return "all";
+}
+
+function getDeviceFilterForVisibility(
+  isActive: boolean,
+  filter: DeviceStatusFilter,
 ) {
   if (filter === "all") {
     return filter;
@@ -105,6 +165,19 @@ async function requestStudentPage(
   active: StudentStatusFilter,
 ) {
   return fetchStudents({
+    active,
+    page,
+    limit: PAGE_SIZE,
+    search: search || undefined,
+  });
+}
+
+async function requestDevicePage(
+  page: number,
+  search: string,
+  active: DeviceStatusFilter,
+) {
+  return fetchDevices({
     active,
     page,
     limit: PAGE_SIZE,
@@ -177,6 +250,32 @@ export default function CompanyScreen() {
   );
   const [isLinkingStudentRfid, setIsLinkingStudentRfid] = useState(false);
 
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [devicePage, setDevicePage] = useState(1);
+  const [deviceLastPage, setDeviceLastPage] = useState(1);
+  const [totalDevices, setTotalDevices] = useState<number | null>(null);
+  const [deviceSearchInput, setDeviceSearchInput] = useState("");
+  const [appliedDeviceSearch, setAppliedDeviceSearch] = useState("");
+  const [deviceActiveFilter, setDeviceActiveFilter] =
+    useState<DeviceStatusFilter>("all");
+  const [deviceFormMode, setDeviceFormMode] = useState<DeviceFormMode>("link");
+  const [deviceNameInput, setDeviceNameInput] = useState("");
+  const [devicePairingCodeInput, setDevicePairingCodeInput] = useState("");
+  const [deviceBusIdInput, setDeviceBusIdInput] = useState("");
+  const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null);
+  const [editingDeviceBusId, setEditingDeviceBusId] = useState<string | null>(null);
+  const [editingDeviceHardwareId, setEditingDeviceHardwareId] = useState<string | null>(
+    null,
+  );
+  const [editingDeviceCode, setEditingDeviceCode] = useState<string | null>(null);
+  const [deactivatingDeviceId, setDeactivatingDeviceId] = useState<string | null>(null);
+  const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
+  const [isLoadingDevices, setIsLoadingDevices] = useState(false);
+  const [isSavingDevice, setIsSavingDevice] = useState(false);
+  const [deviceFormErrors, setDeviceFormErrors] = useState<DeviceFormErrors>({});
+  const [deviceBusOptions, setDeviceBusOptions] = useState<Bus[]>([]);
+  const [isLoadingDeviceBusOptions, setIsLoadingDeviceBusOptions] = useState(false);
+
   const visibleCapacity = buses.reduce((total, bus) => total + bus.capacity, 0);
 
   function clearFeedback() {
@@ -207,6 +306,10 @@ export default function CompanyScreen() {
     setStudentRfidFieldError(undefined);
   }
 
+  function clearDeviceFormErrors() {
+    setDeviceFormErrors({});
+  }
+
   function resetBusForm() {
     setEditingBusId(null);
     setPlateInput("");
@@ -228,6 +331,18 @@ export default function CompanyScreen() {
     setStudentRfidFlowTarget(null);
     setStudentRfidInput("");
     clearStudentRfidErrors();
+  }
+
+  function resetDeviceForm() {
+    setDeviceFormMode("link");
+    setEditingDeviceId(null);
+    setEditingDeviceBusId(null);
+    setEditingDeviceHardwareId(null);
+    setEditingDeviceCode(null);
+    setDeviceNameInput("");
+    setDevicePairingCodeInput("");
+    setDeviceBusIdInput("");
+    clearDeviceFormErrors();
   }
 
   function closeBusModal() {
@@ -266,6 +381,15 @@ export default function CompanyScreen() {
     }
   }
 
+  function closeDeviceModal() {
+    if (isSavingDevice) {
+      return;
+    }
+
+    setIsDeviceModalOpen(false);
+    resetDeviceForm();
+  }
+
   function openCreateBusModal() {
     clearFeedback();
     resetBusForm();
@@ -277,6 +401,56 @@ export default function CompanyScreen() {
     resetStudentForm();
     setStudentActiveInput(true);
     setIsStudentModalOpen(true);
+  }
+
+  const ensureDeviceBusOptions = useCallback(async (force = false) => {
+    if (!force && deviceBusOptions.length > 0) {
+      return deviceBusOptions;
+    }
+
+    setIsLoadingDeviceBusOptions(true);
+
+    try {
+      const options = await fetchBusOptions(BUS_OPTIONS_LIMIT);
+      setDeviceBusOptions(options);
+      return options;
+    } catch (error) {
+      showFeedback(
+        "error",
+        getApiErrorMessage(error, "Nao foi possivel carregar os onibus do UniHub."),
+      );
+      return [];
+    } finally {
+      setIsLoadingDeviceBusOptions(false);
+    }
+  }, [deviceBusOptions, showFeedback]);
+
+  async function openCreateDeviceModal() {
+    clearFeedback();
+    resetDeviceForm();
+    const options = await ensureDeviceBusOptions(true);
+
+    if (options.length === 1) {
+      setDeviceBusIdInput(options[0].id);
+    }
+
+    setIsDeviceModalOpen(true);
+  }
+
+  async function openEditDeviceModal(device: Device) {
+    clearFeedback();
+    resetDeviceForm();
+    clearDeviceFormErrors();
+    const options = await ensureDeviceBusOptions(true);
+
+    setDeviceFormMode("edit");
+    setEditingDeviceId(device.id);
+    setEditingDeviceBusId(device.busId ?? "");
+    setEditingDeviceHardwareId(device.hardwareId);
+    setEditingDeviceCode(device.code ?? null);
+    setDeviceNameInput(device.name?.trim() ?? "");
+    setDeviceBusIdInput(device.busId ?? options[0]?.id ?? "");
+    setIsDeviceModalOpen(true);
   }
 
   function openStudentRfidModal(
@@ -404,8 +578,43 @@ export default function CompanyScreen() {
     };
   }
 
+  function validateDeviceForm() {
+    const nextErrors: DeviceFormErrors = {};
+    const selectedBusId = deviceBusIdInput.trim();
+    const pairingCode = sanitizePairingCode(devicePairingCodeInput).trim();
+    const name = deviceNameInput.trim().replace(/\s+/g, " ");
+
+    if (!selectedBusId) {
+      nextErrors.busId = "Selecione um onibus para continuar.";
+    }
+
+    if (deviceFormMode === "link") {
+      if (!pairingCode) {
+        nextErrors.pairingCode = "Informe o codigo temporario do device.";
+      } else if (!DEVICE_PAIRING_CODE_PATTERN.test(pairingCode)) {
+        nextErrors.pairingCode = "Use um codigo temporario valido gerado pelo IoT.";
+      }
+    }
+
+    if (deviceFormMode === "edit") {
+      if (!name) {
+        nextErrors.name = "Informe o nome exibido do device.";
+      } else if (name.length < 3) {
+        nextErrors.name = "Digite pelo menos 3 caracteres para o nome do device.";
+      }
+    }
+
+    return {
+      isValid: Object.keys(nextErrors).length === 0,
+      name,
+      nextErrors,
+      pairingCode,
+      selectedBusId,
+    };
+  }
+
   function selectSection(nextSection: CatalogSectionKey) {
-    if (isSavingBus || isSavingStudent || isLinkingStudentRfid) {
+    if (isSavingBus || isSavingStudent || isLinkingStudentRfid || isSavingDevice) {
       return;
     }
 
@@ -413,6 +622,7 @@ export default function CompanyScreen() {
     closeBusModal();
     closeStudentModal();
     closeStudentRfidModal();
+    closeDeviceModal();
     setActiveSection(nextSection);
   }
 
@@ -453,6 +663,28 @@ export default function CompanyScreen() {
       );
     } finally {
       setIsLoadingStudents(false);
+    }
+  }
+
+  async function loadDevices(
+    nextPage = devicePage,
+    nextSearch = appliedDeviceSearch,
+    nextFilter = deviceActiveFilter,
+  ) {
+    setIsLoadingDevices(true);
+
+    try {
+      const response = await requestDevicePage(nextPage, nextSearch, nextFilter);
+      setDevices(response.data);
+      setDeviceLastPage(Math.max(response.lastPage, 1));
+      setTotalDevices(typeof response.total === "number" ? response.total : null);
+    } catch (error) {
+      showFeedback(
+        "error",
+        getApiErrorMessage(error, "Nao foi possivel carregar os devices do UniHub."),
+      );
+    } finally {
+      setIsLoadingDevices(false);
     }
   }
 
@@ -541,6 +773,60 @@ export default function CompanyScreen() {
     studentPage,
   ]);
 
+  useEffect(() => {
+    if (!canViewCompanyAdmin || activeSection !== "unihub") {
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingDevices(true);
+
+    void requestDevicePage(devicePage, appliedDeviceSearch, deviceActiveFilter)
+      .then((response) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setDevices(response.data);
+        setDeviceLastPage(Math.max(response.lastPage, 1));
+        setTotalDevices(typeof response.total === "number" ? response.total : null);
+      })
+      .catch((error: unknown) => {
+        if (!isMounted) {
+          return;
+        }
+
+        showFeedback(
+          "error",
+          getApiErrorMessage(error, "Nao foi possivel carregar os devices do UniHub."),
+        );
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingDevices(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    activeSection,
+    appliedDeviceSearch,
+    canViewCompanyAdmin,
+    deviceActiveFilter,
+    devicePage,
+    showFeedback,
+  ]);
+
+  useEffect(() => {
+    if (!canViewCompanyAdmin || activeSection !== "unihub") {
+      return;
+    }
+
+    void ensureDeviceBusOptions();
+  }, [activeSection, canViewCompanyAdmin, ensureDeviceBusOptions]);
+
   async function refreshOrMoveBuses(
     nextPage = busPage,
     nextSearch = appliedBusSearch,
@@ -591,6 +877,35 @@ export default function CompanyScreen() {
     }
 
     await loadStudents(nextPage, nextSearch, nextFilter);
+  }
+
+  async function refreshOrMoveDevices(
+    nextPage = devicePage,
+    nextSearch = appliedDeviceSearch,
+    nextFilter = deviceActiveFilter,
+  ) {
+    let shouldWaitForEffect = false;
+
+    if (devicePage !== nextPage) {
+      setDevicePage(nextPage);
+      shouldWaitForEffect = true;
+    }
+
+    if (appliedDeviceSearch !== nextSearch) {
+      setAppliedDeviceSearch(nextSearch);
+      shouldWaitForEffect = true;
+    }
+
+    if (deviceActiveFilter !== nextFilter) {
+      setDeviceActiveFilter(nextFilter);
+      shouldWaitForEffect = true;
+    }
+
+    if (shouldWaitForEffect) {
+      return;
+    }
+
+    await loadDevices(nextPage, nextSearch, nextFilter);
   }
 
   async function handleSubmitBus() {
@@ -758,6 +1073,85 @@ export default function CompanyScreen() {
     }
   }
 
+  async function handleSubmitDevice() {
+    const { isValid, name, nextErrors, pairingCode, selectedBusId } =
+      validateDeviceForm();
+
+    if (!isValid) {
+      setDeviceFormErrors(nextErrors);
+      showFeedback("error", "Revise os campos destacados antes de salvar o device.");
+      return;
+    }
+
+    const selectedBus = deviceBusOptions.find((bus) => bus.id === selectedBusId);
+
+    setIsSavingDevice(true);
+    clearFeedback();
+    clearDeviceFormErrors();
+
+    try {
+      const nextVisibleFilter = getDeviceFilterForVisibility(
+        true,
+        deviceActiveFilter,
+      );
+
+      if (deviceFormMode === "edit" && editingDeviceId) {
+        if (editingDeviceBusId !== selectedBusId) {
+          await linkDeviceBus(editingDeviceId, selectedBusId);
+        }
+
+        await updateDeviceName(editingDeviceId, name);
+
+        showFeedback(
+          "success",
+          `Device ${name} atualizado com sucesso.`,
+        );
+
+        setIsDeviceModalOpen(false);
+        resetDeviceForm();
+        await refreshOrMoveDevices(devicePage, appliedDeviceSearch, deviceActiveFilter);
+        return;
+      }
+
+      await linkDevice({
+        busId: selectedBusId,
+        pairingCode,
+      });
+
+      showFeedback(
+        "success",
+        `Device vinculado com sucesso ao onibus ${selectedBus?.plate ?? "selecionado"}.`,
+      );
+      setIsDeviceModalOpen(false);
+      resetDeviceForm();
+      setDeviceSearchInput("");
+      await refreshOrMoveDevices(1, "", nextVisibleFilter);
+    } catch (error) {
+      const message = getApiErrorMessage(error, "Nao foi possivel salvar o device.");
+      const lowered = message.toLowerCase();
+      const nextFormErrors: DeviceFormErrors = {
+        general: message,
+      };
+
+      if (lowered.includes("codigo") || lowered.includes("temporario")) {
+        nextFormErrors.pairingCode = message;
+      }
+
+      if (lowered.includes("onibus")) {
+        nextFormErrors.busId = message;
+      }
+
+      if (lowered.includes("nome")) {
+        nextFormErrors.name = message;
+      }
+
+      showFeedback("error", message);
+      setDeviceFormErrors(nextFormErrors);
+    } finally {
+      setIsSavingDevice(false);
+    }
+  }
+
   async function handleDeleteBus(bus: Bus) {
     setDeletingBusId(bus.id);
     clearFeedback();
@@ -828,6 +1222,31 @@ export default function CompanyScreen() {
     }
   }
 
+  async function handleDeactivateDevice(device: Device) {
+    setDeactivatingDeviceId(device.id);
+    clearFeedback();
+
+    try {
+      await deactivateDevices([device.id]);
+      showFeedback("success", `Device ${getDeviceName(device)} desativado com sucesso.`);
+
+      if (editingDeviceId === device.id) {
+        resetDeviceForm();
+      }
+
+      const nextPage =
+        devicePage > 1 && devices.length === 1 ? devicePage - 1 : devicePage;
+      await refreshOrMoveDevices(nextPage, appliedDeviceSearch, deviceActiveFilter);
+    } catch (error) {
+      showFeedback(
+        "error",
+        getApiErrorMessage(error, "Nao foi possivel desativar o device."),
+      );
+    } finally {
+      setDeactivatingDeviceId(null);
+    }
+  }
+
   function confirmDeleteBus(bus: Bus) {
     Alert.alert(
       "Excluir onibus",
@@ -878,6 +1297,22 @@ export default function CompanyScreen() {
     );
   }
 
+  function confirmDeactivateDevice(device: Device) {
+    Alert.alert(
+      "Desativar device",
+      `Deseja desativar o device ${getDeviceName(device)}?`,
+      [
+        { style: "cancel", text: "Cancelar" },
+        {
+          text: "Desativar",
+          onPress: () => {
+            void handleDeactivateDevice(device);
+          },
+        },
+      ],
+    );
+  }
+
   function startEditing(bus: Bus) {
     clearFeedback();
     clearBusFormErrors();
@@ -897,6 +1332,10 @@ export default function CompanyScreen() {
     setStudentPhoneInput(student.phone ?? "");
     setStudentActiveInput(student.active);
     setIsStudentModalOpen(true);
+  }
+
+  function startEditingDevice(device: Device) {
+    void openEditDeviceModal(device);
   }
 
   function renderActiveSection() {
@@ -1058,11 +1497,72 @@ export default function CompanyScreen() {
     }
 
     return (
-      <PlaceholderSection
-        actionLabel="UniHub"
-        description="Aqui entra o cadastro de dispositivos, pairing, vinculo com onibus e manutencao do modulo de campo."
-        icon={Cpu}
-        title="UniHub"
+      <UniHubSection
+        appliedSearch={appliedDeviceSearch}
+        busOptions={deviceBusOptions}
+        currentFilter={deviceActiveFilter}
+        deviceBusIdInput={deviceBusIdInput}
+        deviceCodePreview={editingDeviceCode}
+        deviceFormMode={deviceFormMode}
+        deviceHardwareIdPreview={editingDeviceHardwareId}
+        deviceNameInput={deviceNameInput}
+        devicePairingCodeInput={devicePairingCodeInput}
+        devices={devices}
+        editingDeviceId={editingDeviceId}
+        feedbackMessage={feedbackMessage}
+        feedbackTone={feedbackTone}
+        formErrorMessage={deviceFormErrors.general}
+        formErrors={deviceFormErrors}
+        isLoadingBusOptions={isLoadingDeviceBusOptions}
+        isLoadingDevices={isLoadingDevices}
+        isModalOpen={isDeviceModalOpen}
+        isSavingDevice={isSavingDevice || deactivatingDeviceId !== null}
+        lastPage={deviceLastPage}
+        onActiveFilterChange={(value) => {
+          clearFeedback();
+          void refreshOrMoveDevices(1, appliedDeviceSearch, value);
+        }}
+        onBusChange={(value) => {
+          clearDeviceFormErrors();
+          setDeviceBusIdInput(value);
+        }}
+        onClearSearch={() => {
+          clearFeedback();
+          setDeviceSearchInput("");
+          void refreshOrMoveDevices(1, "", deviceActiveFilter);
+        }}
+        onCloseModal={closeDeviceModal}
+        onDeactivateDevice={confirmDeactivateDevice}
+        onDeviceNameChange={(value) => {
+          clearDeviceFormErrors();
+          setDeviceNameInput(sanitizeDeviceName(value));
+        }}
+        onEditDevice={startEditingDevice}
+        onOpenCreateModal={() => {
+          void openCreateDeviceModal();
+        }}
+        onPageChange={(nextPage) => {
+          void refreshOrMoveDevices(nextPage, appliedDeviceSearch, deviceActiveFilter);
+        }}
+        onPairingCodeChange={(value) => {
+          clearDeviceFormErrors();
+          setDevicePairingCodeInput(sanitizePairingCode(value));
+        }}
+        onRefresh={() => {
+          void ensureDeviceBusOptions(true);
+          void loadDevices(devicePage, appliedDeviceSearch, deviceActiveFilter);
+        }}
+        onSearch={() => {
+          clearFeedback();
+          void refreshOrMoveDevices(1, deviceSearchInput.trim(), deviceActiveFilter);
+        }}
+        onSubmit={() => {
+          void handleSubmitDevice();
+        }}
+        page={devicePage}
+        searchInput={deviceSearchInput}
+        setSearchInput={setDeviceSearchInput}
+        totalDevices={totalDevices}
       />
     );
   }

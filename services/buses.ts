@@ -44,6 +44,11 @@ export async function fetchBuses({
   return get<BusListResponse>(`/buses?${params.toString()}`);
 }
 
+export async function fetchBusOptions(limit = 100) {
+  const response = await fetchBuses({ limit, page: 1 });
+  return response.data;
+}
+
 export async function createBus(input: CreateBusInput) {
   return post<Bus>("/buses", {
     ...input,

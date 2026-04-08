@@ -20,11 +20,11 @@ export const catalogSections: CatalogSection[] = [
     statusTone: "live",
   },
   {
-    description: "Espaco para dispositivos, pairing e vinculos.",
+    description: "CRUD real conectado ao backend de devices e pairing.",
     icon: Cpu,
     key: "unihub",
     label: "UniHub",
-    status: "Aguardando API",
-    statusTone: "next",
+    status: "Integrado",
+    statusTone: "live",
   },
 ];
