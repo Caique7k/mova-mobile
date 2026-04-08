@@ -12,12 +12,12 @@ export const catalogSections: CatalogSection[] = [
     statusTone: "live",
   },
   {
-    description: "Tela-base pronta para lista, cadastro e edicao.",
+    description: "CRUD real conectado ao backend de alunos.",
     icon: GraduationCap,
     key: "students",
     label: "Alunos",
-    status: "Aguardando API",
-    statusTone: "next",
+    status: "Integrado",
+    statusTone: "live",
   },
   {
     description: "Espaco para dispositivos, pairing e vinculos.",

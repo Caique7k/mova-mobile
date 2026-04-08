@@ -9,6 +9,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
+import ToastManager from "toastify-react-native";
 import "@/global.css";
 
 export const unstable_settings = {
@@ -23,6 +24,28 @@ export default function RootLayout() {
       <GluestackUIProvider>
         <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
           <RootNavigator />
+          <ToastManager
+            animationStyle="slide"
+            closeIcon="close-outline"
+            closeIconFamily="Ionicons"
+            closeIconSize={18}
+            duration={3200}
+            iconFamily="Ionicons"
+            icons={{
+              default: "notifications",
+              error: "close-circle",
+              info: "information-circle",
+              success: "checkmark-circle",
+              warn: "warning",
+            }}
+            minHeight={64}
+            position="top"
+            showCloseIcon
+            showProgressBar
+            topOffset={56}
+            useModal={false}
+            width="92%"
+          />
           <StatusBar style="auto" />
         </ThemeProvider>
       </GluestackUIProvider>

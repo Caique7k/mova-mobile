@@ -26,6 +26,27 @@ export function getAuthToken() {
   return authToken;
 }
 
+export function getApiErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof ApiError) {
+    if (
+      error.response &&
+      typeof error.response === "object" &&
+      "message" in error.response &&
+      typeof error.response.message === "string"
+    ) {
+      return error.response.message;
+    }
+
+    return error.status > 0 ? `Erro ${error.status}: ${error.message}` : error.message;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 async function parseJson(response: Response) {
   const text = await response.text();
   if (!text) return null;
@@ -98,6 +119,13 @@ export function post<T>(path: string, body?: unknown) {
 export function put<T>(path: string, body?: unknown) {
   return request<T>(path, {
     method: "PUT",
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
+export function patch<T>(path: string, body?: unknown) {
+  return request<T>(path, {
+    method: "PATCH",
     body: body ? JSON.stringify(body) : undefined,
   });
 }

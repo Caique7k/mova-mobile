@@ -1,4 +1,4 @@
-import { ApiError, del, get, post, put } from "@/services/api";
+import { del, get, post, put } from "@/services/api";
 
 export type Bus = {
   id: string;
@@ -26,27 +26,6 @@ type FetchBusesParams = {
   limit?: number;
   search?: string;
 };
-
-export function getApiErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiError) {
-    if (
-      error.response &&
-      typeof error.response === "object" &&
-      "message" in error.response &&
-      typeof error.response.message === "string"
-    ) {
-      return error.response.message;
-    }
-
-    return error.status > 0 ? `Erro ${error.status}: ${error.message}` : error.message;
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 export async function fetchBuses({
   limit = 10,

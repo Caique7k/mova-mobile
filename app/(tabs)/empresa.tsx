@@ -1,24 +1,40 @@
 import { BusesSection } from "@/components/cadastros/buses-section";
 import { catalogSections } from "@/components/cadastros/config";
+import { StudentsSection } from "@/components/cadastros/students-section";
 import { CatalogNavItem, PlaceholderSection } from "@/components/cadastros/ui";
 import type { CatalogSectionKey } from "@/components/cadastros/types";
 import { useAuth } from "@/contexts/auth-context";
 import { canManageCompany, extractSessionRoles } from "@/services/auth";
+import { getApiErrorMessage } from "@/services/api";
 import {
   createBus,
   deleteBuses,
   fetchBuses,
-  getApiErrorMessage,
   updateBus,
   type Bus,
 } from "@/services/buses";
-import { Cpu, GraduationCap } from "lucide";
-import { useEffect, useState } from "react";
+import { linkStudentRfid } from "@/services/rfid";
+import {
+  createStudent,
+  deactivateStudents,
+  deleteStudents,
+  fetchStudents,
+  updateStudent,
+  type Student,
+  type StudentStatusFilter,
+} from "@/services/students";
+import { hideAppToast, showAppToast } from "@/services/toast";
+import { Cpu } from "lucide";
+import { useCallback, useEffect, useState } from "react";
 import { Alert, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const PAGE_SIZE = 5;
 const MERCOSUL_PLATE_PATTERN = /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/;
+const STUDENT_LOCAL_EMAIL_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/i;
+const STUDENT_FULL_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+
+type FeedbackTone = "error" | "success";
 
 type BusFormErrors = {
   capacity?: string;
@@ -26,12 +42,70 @@ type BusFormErrors = {
   plate?: string;
 };
 
+type StudentFormErrors = {
+  email?: string;
+  general?: string;
+  name?: string;
+  phone?: string;
+  registration?: string;
+};
+
+type StudentRfidFlowTarget = {
+  fromCreation: boolean;
+  id: string;
+  name: string;
+};
+
 function sanitizePlate(value: string) {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
+function sanitizeStudentName(value: string) {
+  return value.replace(/\s+/g, " ");
+}
+
+function sanitizeStudentEmail(value: string) {
+  return value.replace(/\s+/g, "").toLowerCase();
+}
+
+function sanitizeStudentPhone(value: string) {
+  return value.replace(/[^\d()+\-\s]/g, "");
+}
+
+function sanitizeStudentRfid(value: string) {
+  return value.toUpperCase().replace(/\s+/g, "");
+}
+
+function getStudentFilterForVisibility(
+  isActive: boolean,
+  filter: StudentStatusFilter,
+) {
+  if (filter === "all") {
+    return filter;
+  }
+
+  if ((filter === "active" && isActive) || (filter === "inactive" && !isActive)) {
+    return filter;
+  }
+
+  return "all";
+}
+
 async function requestBusPage(page: number, search: string) {
   return fetchBuses({
+    page,
+    limit: PAGE_SIZE,
+    search: search || undefined,
+  });
+}
+
+async function requestStudentPage(
+  page: number,
+  search: string,
+  active: StudentStatusFilter,
+) {
+  return fetchStudents({
+    active,
     page,
     limit: PAGE_SIZE,
     search: search || undefined,
@@ -44,14 +118,24 @@ export default function CompanyScreen() {
   const canViewCompanyAdmin = canManageCompany(session);
   const sessionRoles = extractSessionRoles(session);
   const isCompactRail = width < 900;
+  const companyEmailDomain =
+    typeof session?.user.emailDomain === "string" && session.user.emailDomain.trim()
+      ? session.user.emailDomain.trim().toLowerCase()
+      : typeof session?.company?.slug === "string" && session.company.slug.trim()
+        ? session.company.slug.trim().toLowerCase()
+        : null;
 
   const [activeSection, setActiveSection] = useState<CatalogSectionKey>("buses");
+
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [feedbackTone, setFeedbackTone] = useState<FeedbackTone | null>(null);
+
   const [buses, setBuses] = useState<Bus[]>([]);
-  const [page, setPage] = useState(1);
-  const [lastPage, setLastPage] = useState(1);
+  const [busPage, setBusPage] = useState(1);
+  const [busLastPage, setBusLastPage] = useState(1);
   const [totalBuses, setTotalBuses] = useState(0);
-  const [searchInput, setSearchInput] = useState("");
-  const [appliedSearch, setAppliedSearch] = useState("");
+  const [busSearchInput, setBusSearchInput] = useState("");
+  const [appliedBusSearch, setAppliedBusSearch] = useState("");
   const [plateInput, setPlateInput] = useState("");
   const [capacityInput, setCapacityInput] = useState("");
   const [isBusModalOpen, setIsBusModalOpen] = useState(false);
@@ -59,26 +143,91 @@ export default function CompanyScreen() {
   const [deletingBusId, setDeletingBusId] = useState<string | null>(null);
   const [isLoadingBuses, setIsLoadingBuses] = useState(false);
   const [isSavingBus, setIsSavingBus] = useState(false);
-  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
-  const [feedbackTone, setFeedbackTone] = useState<"error" | "success" | null>(null);
   const [busFormErrors, setBusFormErrors] = useState<BusFormErrors>({});
+
+  const [students, setStudents] = useState<Student[]>([]);
+  const [studentPage, setStudentPage] = useState(1);
+  const [studentLastPage, setStudentLastPage] = useState(1);
+  const [totalStudents, setTotalStudents] = useState(0);
+  const [studentSearchInput, setStudentSearchInput] = useState("");
+  const [appliedStudentSearch, setAppliedStudentSearch] = useState("");
+  const [studentActiveFilter, setStudentActiveFilter] =
+    useState<StudentStatusFilter>("all");
+  const [studentNameInput, setStudentNameInput] = useState("");
+  const [studentRegistrationInput, setStudentRegistrationInput] = useState("");
+  const [studentEmailInput, setStudentEmailInput] = useState("");
+  const [studentPhoneInput, setStudentPhoneInput] = useState("");
+  const [studentActiveInput, setStudentActiveInput] = useState(true);
+  const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
+  const [deletingStudentId, setDeletingStudentId] = useState<string | null>(null);
+  const [deactivatingStudentId, setDeactivatingStudentId] = useState<string | null>(null);
+  const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
+  const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  const [isSavingStudent, setIsSavingStudent] = useState(false);
+  const [studentFormErrors, setStudentFormErrors] = useState<StudentFormErrors>({});
+  const [isStudentRfidModalOpen, setIsStudentRfidModalOpen] = useState(false);
+  const [studentRfidFlowTarget, setStudentRfidFlowTarget] =
+    useState<StudentRfidFlowTarget | null>(null);
+  const [studentRfidInput, setStudentRfidInput] = useState("");
+  const [studentRfidErrorMessage, setStudentRfidErrorMessage] = useState<string | null>(
+    null,
+  );
+  const [studentRfidFieldError, setStudentRfidFieldError] = useState<string | undefined>(
+    undefined,
+  );
+  const [isLinkingStudentRfid, setIsLinkingStudentRfid] = useState(false);
 
   const visibleCapacity = buses.reduce((total, bus) => total + bus.capacity, 0);
 
   function clearFeedback() {
     setFeedbackMessage(null);
     setFeedbackTone(null);
+    hideAppToast();
   }
+
+  const showFeedback = useCallback((tone: FeedbackTone, message: string) => {
+    setFeedbackMessage(message);
+    setFeedbackTone(tone);
+    showAppToast({
+      message,
+      tone,
+    });
+  }, []);
 
   function clearBusFormErrors() {
     setBusFormErrors({});
   }
 
-  function resetForm() {
+  function clearStudentFormErrors() {
+    setStudentFormErrors({});
+  }
+
+  function clearStudentRfidErrors() {
+    setStudentRfidErrorMessage(null);
+    setStudentRfidFieldError(undefined);
+  }
+
+  function resetBusForm() {
     setEditingBusId(null);
     setPlateInput("");
     setCapacityInput("");
     clearBusFormErrors();
+  }
+
+  function resetStudentForm() {
+    setEditingStudentId(null);
+    setStudentNameInput("");
+    setStudentRegistrationInput("");
+    setStudentEmailInput("");
+    setStudentPhoneInput("");
+    setStudentActiveInput(true);
+    clearStudentFormErrors();
+  }
+
+  function resetStudentRfidFlow() {
+    setStudentRfidFlowTarget(null);
+    setStudentRfidInput("");
+    clearStudentRfidErrors();
   }
 
   function closeBusModal() {
@@ -87,13 +236,62 @@ export default function CompanyScreen() {
     }
 
     setIsBusModalOpen(false);
-    resetForm();
+    resetBusForm();
+  }
+
+  function closeStudentModal() {
+    if (isSavingStudent) {
+      return;
+    }
+
+    setIsStudentModalOpen(false);
+    resetStudentForm();
+  }
+
+  function closeStudentRfidModal() {
+    if (isLinkingStudentRfid) {
+      return;
+    }
+
+    const target = studentRfidFlowTarget;
+
+    setIsStudentRfidModalOpen(false);
+    resetStudentRfidFlow();
+
+    if (target?.fromCreation) {
+      showFeedback(
+        "success",
+        `Aluno ${target.name} cadastrado com sucesso. Vinculacao RFID pendente.`,
+      );
+    }
   }
 
   function openCreateBusModal() {
     clearFeedback();
-    resetForm();
+    resetBusForm();
     setIsBusModalOpen(true);
+  }
+
+  function openCreateStudentModal() {
+    clearFeedback();
+    resetStudentForm();
+    setStudentActiveInput(true);
+    setIsStudentModalOpen(true);
+  }
+
+  function openStudentRfidModal(
+    target: Pick<Student, "id" | "name">,
+    fromCreation = false,
+  ) {
+    clearFeedback();
+    clearStudentRfidErrors();
+    setStudentRfidFlowTarget({
+      fromCreation,
+      id: target.id,
+      name: target.name,
+    });
+    setStudentRfidInput("");
+    setIsStudentRfidModalOpen(true);
   }
 
   function validateBusForm() {
@@ -121,31 +319,140 @@ export default function CompanyScreen() {
     };
   }
 
+  function validateStudentForm() {
+    const nextErrors: StudentFormErrors = {};
+    const name = studentNameInput.trim().replace(/\s+/g, " ");
+    const registration = studentRegistrationInput.trim();
+    const email = studentEmailInput.trim().toLowerCase();
+    const phone = studentPhoneInput.trim();
+    const expectedDomain = companyEmailDomain?.replace(/^@/, "").toLowerCase() ?? null;
+
+    if (!name) {
+      nextErrors.name = "Preencha o nome do aluno.";
+    } else if (name.length < 3) {
+      nextErrors.name = "Digite pelo menos 3 caracteres para o nome.";
+    }
+
+    if (!registration) {
+      nextErrors.registration = "Preencha a matricula.";
+    } else if (registration.length < 3) {
+      nextErrors.registration = "A matricula precisa ter pelo menos 3 caracteres.";
+    }
+
+    if (email) {
+      if (email.includes("@")) {
+        const [localPart = "", domainPart = ""] = email.split("@");
+
+        if (!STUDENT_FULL_EMAIL_PATTERN.test(email)) {
+          nextErrors.email = "Informe um email valido.";
+        } else if (!STUDENT_LOCAL_EMAIL_PATTERN.test(localPart)) {
+          nextErrors.email =
+            "Use apenas letras, numeros, ponto, underline ou hifen antes do dominio.";
+        } else if (expectedDomain && domainPart.toLowerCase() !== expectedDomain) {
+          nextErrors.email = `O email do aluno deve usar o dominio ${expectedDomain}.`;
+        }
+      } else if (!STUDENT_LOCAL_EMAIL_PATTERN.test(email)) {
+        nextErrors.email =
+          "Use apenas letras, numeros, ponto, underline ou hifen antes do dominio.";
+      } else if (!expectedDomain) {
+        nextErrors.email = "Informe o email completo, incluindo o dominio.";
+      }
+    }
+
+    if (phone) {
+      const digits = phone.replace(/[^\d]/g, "");
+
+      if (digits.length < 10) {
+        nextErrors.phone =
+          "Informe um telefone com DDD ou deixe o campo em branco.";
+      }
+    }
+
+    return {
+      email,
+      isValid: Object.keys(nextErrors).length === 0,
+      name,
+      nextErrors,
+      phone,
+      registration,
+    };
+  }
+
+  function validateStudentRfidInput() {
+    const tag = sanitizeStudentRfid(studentRfidInput).trim();
+
+    if (!tag) {
+      return {
+        isValid: false,
+        tag,
+        tagError: "Digite a tag RFID para concluir o vinculo.",
+      };
+    }
+
+    if (tag.length < 4) {
+      return {
+        isValid: false,
+        tag,
+        tagError: "A tag RFID parece curta demais.",
+      };
+    }
+
+    return {
+      isValid: true,
+      tag,
+      tagError: undefined,
+    };
+  }
+
   function selectSection(nextSection: CatalogSectionKey) {
-    if (isSavingBus) {
+    if (isSavingBus || isSavingStudent || isLinkingStudentRfid) {
       return;
     }
 
     clearFeedback();
     closeBusModal();
+    closeStudentModal();
+    closeStudentRfidModal();
     setActiveSection(nextSection);
   }
 
-  async function loadBuses(nextPage = page, nextSearch = appliedSearch) {
+  async function loadBuses(nextPage = busPage, nextSearch = appliedBusSearch) {
     setIsLoadingBuses(true);
 
     try {
       const response = await requestBusPage(nextPage, nextSearch);
       setBuses(response.data);
       setTotalBuses(response.total);
-      setLastPage(Math.max(response.lastPage, 1));
+      setBusLastPage(Math.max(response.lastPage, 1));
     } catch (error) {
-      setFeedbackTone("error");
-      setFeedbackMessage(
+      showFeedback(
+        "error",
         getApiErrorMessage(error, "Nao foi possivel carregar os onibus."),
       );
     } finally {
       setIsLoadingBuses(false);
+    }
+  }
+
+  async function loadStudents(
+    nextPage = studentPage,
+    nextSearch = appliedStudentSearch,
+    nextFilter = studentActiveFilter,
+  ) {
+    setIsLoadingStudents(true);
+
+    try {
+      const response = await requestStudentPage(nextPage, nextSearch, nextFilter);
+      setStudents(response.data);
+      setTotalStudents(response.total);
+      setStudentLastPage(Math.max(response.lastPage, 1));
+    } catch (error) {
+      showFeedback(
+        "error",
+        getApiErrorMessage(error, "Nao foi possivel carregar os alunos."),
+      );
+    } finally {
+      setIsLoadingStudents(false);
     }
   }
 
@@ -157,7 +464,7 @@ export default function CompanyScreen() {
     let isMounted = true;
     setIsLoadingBuses(true);
 
-    void requestBusPage(page, appliedSearch)
+    void requestBusPage(busPage, appliedBusSearch)
       .then((response) => {
         if (!isMounted) {
           return;
@@ -165,15 +472,15 @@ export default function CompanyScreen() {
 
         setBuses(response.data);
         setTotalBuses(response.total);
-        setLastPage(Math.max(response.lastPage, 1));
+        setBusLastPage(Math.max(response.lastPage, 1));
       })
       .catch((error: unknown) => {
         if (!isMounted) {
           return;
         }
 
-        setFeedbackTone("error");
-        setFeedbackMessage(
+        showFeedback(
+          "error",
           getApiErrorMessage(error, "Nao foi possivel carregar os onibus."),
         );
       })
@@ -186,20 +493,104 @@ export default function CompanyScreen() {
     return () => {
       isMounted = false;
     };
-  }, [activeSection, appliedSearch, canViewCompanyAdmin, page]);
+  }, [activeSection, appliedBusSearch, busPage, canViewCompanyAdmin, showFeedback]);
 
-  async function refreshOrMove(nextPage = page, nextSearch = appliedSearch) {
-    if (page !== nextPage) {
-      setPage(nextPage);
+  useEffect(() => {
+    if (!canViewCompanyAdmin || activeSection !== "students") {
       return;
     }
 
-    if (appliedSearch !== nextSearch) {
-      setAppliedSearch(nextSearch);
+    let isMounted = true;
+    setIsLoadingStudents(true);
+
+    void requestStudentPage(studentPage, appliedStudentSearch, studentActiveFilter)
+      .then((response) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setStudents(response.data);
+        setTotalStudents(response.total);
+        setStudentLastPage(Math.max(response.lastPage, 1));
+      })
+      .catch((error: unknown) => {
+        if (!isMounted) {
+          return;
+        }
+
+        showFeedback(
+          "error",
+          getApiErrorMessage(error, "Nao foi possivel carregar os alunos."),
+        );
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingStudents(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    activeSection,
+    appliedStudentSearch,
+    canViewCompanyAdmin,
+    showFeedback,
+    studentActiveFilter,
+    studentPage,
+  ]);
+
+  async function refreshOrMoveBuses(
+    nextPage = busPage,
+    nextSearch = appliedBusSearch,
+  ) {
+    let shouldWaitForEffect = false;
+
+    if (busPage !== nextPage) {
+      setBusPage(nextPage);
+      shouldWaitForEffect = true;
+    }
+
+    if (appliedBusSearch !== nextSearch) {
+      setAppliedBusSearch(nextSearch);
+      shouldWaitForEffect = true;
+    }
+
+    if (shouldWaitForEffect) {
       return;
     }
 
     await loadBuses(nextPage, nextSearch);
+  }
+
+  async function refreshOrMoveStudents(
+    nextPage = studentPage,
+    nextSearch = appliedStudentSearch,
+    nextFilter = studentActiveFilter,
+  ) {
+    let shouldWaitForEffect = false;
+
+    if (studentPage !== nextPage) {
+      setStudentPage(nextPage);
+      shouldWaitForEffect = true;
+    }
+
+    if (appliedStudentSearch !== nextSearch) {
+      setAppliedStudentSearch(nextSearch);
+      shouldWaitForEffect = true;
+    }
+
+    if (studentActiveFilter !== nextFilter) {
+      setStudentActiveFilter(nextFilter);
+      shouldWaitForEffect = true;
+    }
+
+    if (shouldWaitForEffect) {
+      return;
+    }
+
+    await loadStudents(nextPage, nextSearch, nextFilter);
   }
 
   async function handleSubmitBus() {
@@ -207,6 +598,7 @@ export default function CompanyScreen() {
 
     if (!isValid) {
       setBusFormErrors(nextErrors);
+      showFeedback("error", "Revise os campos destacados antes de salvar o onibus.");
       return;
     }
 
@@ -217,23 +609,23 @@ export default function CompanyScreen() {
     try {
       if (editingBusId) {
         await updateBus(editingBusId, { capacity, plate });
-        setFeedbackTone("success");
-        setFeedbackMessage(`Onibus ${plate} atualizado com sucesso.`);
+        showFeedback("success", `Onibus ${plate} atualizado com sucesso.`);
       } else {
         await createBus({ capacity, plate });
-        setFeedbackTone("success");
-        setFeedbackMessage(`Onibus ${plate} cadastrado com sucesso.`);
+        showFeedback("success", `Onibus ${plate} cadastrado com sucesso.`);
       }
 
       setIsBusModalOpen(false);
-      resetForm();
-      setSearchInput("");
-      await refreshOrMove(1, "");
+      resetBusForm();
+      setBusSearchInput("");
+      await refreshOrMoveBuses(1, "");
     } catch (error) {
       const message = getApiErrorMessage(error, "Nao foi possivel salvar o onibus.");
       const nextFormErrors: BusFormErrors = {
         general: message,
       };
+
+      showFeedback("error", message);
 
       if (message.toLowerCase().includes("placa")) {
         nextFormErrors.plate = message;
@@ -245,28 +637,194 @@ export default function CompanyScreen() {
     }
   }
 
+  async function handleSubmitStudent() {
+    const { email, isValid, name, nextErrors, phone, registration } =
+      validateStudentForm();
+
+    if (!isValid) {
+      setStudentFormErrors(nextErrors);
+      showFeedback("error", "Revise os campos destacados antes de salvar o aluno.");
+      return;
+    }
+
+    setIsSavingStudent(true);
+    clearFeedback();
+    clearStudentFormErrors();
+
+    try {
+      const nextVisibleFilter = getStudentFilterForVisibility(
+        editingStudentId ? studentActiveInput : true,
+        studentActiveFilter,
+      );
+
+      if (editingStudentId) {
+        await updateStudent(editingStudentId, {
+          active: studentActiveInput,
+          email,
+          name,
+          phone,
+          registration,
+        });
+        showFeedback("success", `Aluno ${name} atualizado com sucesso.`);
+      } else {
+        const createdStudent = await createStudent({
+          active: true,
+          email,
+          name,
+          phone,
+          registration,
+        });
+
+        setIsStudentModalOpen(false);
+        resetStudentForm();
+        setStudentSearchInput("");
+        setStudentPage(1);
+        setAppliedStudentSearch("");
+        setStudentActiveFilter(nextVisibleFilter);
+        await loadStudents(1, "", nextVisibleFilter);
+        openStudentRfidModal(createdStudent, true);
+        return;
+      }
+
+      setIsStudentModalOpen(false);
+      resetStudentForm();
+      setStudentSearchInput("");
+      await refreshOrMoveStudents(1, "", nextVisibleFilter);
+    } catch (error) {
+      const message = getApiErrorMessage(error, "Nao foi possivel salvar o aluno.");
+      const lowered = message.toLowerCase();
+      const nextFormErrors: StudentFormErrors = {
+        general: message,
+      };
+
+      showFeedback("error", message);
+
+      if (lowered.includes("matric")) {
+        nextFormErrors.registration = message;
+      }
+
+      if (lowered.includes("email") || lowered.includes("dominio")) {
+        nextFormErrors.email = message;
+      }
+
+      setStudentFormErrors(nextFormErrors);
+    } finally {
+      setIsSavingStudent(false);
+    }
+  }
+
+  async function handleSubmitStudentRfid() {
+    const target = studentRfidFlowTarget;
+
+    if (!target) {
+      return;
+    }
+
+    const { isValid, tag, tagError } = validateStudentRfidInput();
+
+    if (!isValid) {
+      setStudentRfidFieldError(tagError);
+      showFeedback("error", "Digite uma tag RFID valida para concluir o vinculo.");
+      return;
+    }
+
+    setIsLinkingStudentRfid(true);
+    clearStudentRfidErrors();
+
+    try {
+      await linkStudentRfid({
+        rfidTag: tag,
+        studentId: target.id,
+      });
+
+      showFeedback("success", `Tag RFID vinculada com sucesso ao aluno ${target.name}.`);
+      setIsStudentRfidModalOpen(false);
+      resetStudentRfidFlow();
+      await loadStudents(studentPage, appliedStudentSearch, studentActiveFilter);
+    } catch (error) {
+      const message = getApiErrorMessage(
+        error,
+        "Nao foi possivel vincular a tag RFID.",
+      );
+
+      showFeedback("error", message);
+      setStudentRfidErrorMessage(message);
+
+      if (message.toLowerCase().includes("tag")) {
+        setStudentRfidFieldError(message);
+      }
+    } finally {
+      setIsLinkingStudentRfid(false);
+    }
+  }
+
   async function handleDeleteBus(bus: Bus) {
     setDeletingBusId(bus.id);
     clearFeedback();
 
     try {
       await deleteBuses([bus.id]);
-      setFeedbackTone("success");
-      setFeedbackMessage(`Onibus ${bus.plate} excluido com sucesso.`);
+      showFeedback("success", `Onibus ${bus.plate} excluido com sucesso.`);
 
       if (editingBusId === bus.id) {
-        resetForm();
+        resetBusForm();
       }
 
-      const nextPage = page > 1 && buses.length === 1 ? page - 1 : page;
-      await refreshOrMove(nextPage, appliedSearch);
+      const nextPage = busPage > 1 && buses.length === 1 ? busPage - 1 : busPage;
+      await refreshOrMoveBuses(nextPage, appliedBusSearch);
     } catch (error) {
-      setFeedbackTone("error");
-      setFeedbackMessage(
+      showFeedback(
+        "error",
         getApiErrorMessage(error, "Nao foi possivel excluir o onibus."),
       );
     } finally {
       setDeletingBusId(null);
+    }
+  }
+
+  async function handleDeleteStudent(student: Student) {
+    setDeletingStudentId(student.id);
+    clearFeedback();
+
+    try {
+      await deleteStudents([student.id]);
+      showFeedback("success", `Aluno ${student.name} excluido com sucesso.`);
+
+      if (editingStudentId === student.id) {
+        resetStudentForm();
+      }
+
+      const nextPage =
+        studentPage > 1 && students.length === 1 ? studentPage - 1 : studentPage;
+      await refreshOrMoveStudents(nextPage, appliedStudentSearch, studentActiveFilter);
+    } catch (error) {
+      showFeedback(
+        "error",
+        getApiErrorMessage(error, "Nao foi possivel excluir o aluno."),
+      );
+    } finally {
+      setDeletingStudentId(null);
+    }
+  }
+
+  async function handleDeactivateStudent(student: Student) {
+    setDeactivatingStudentId(student.id);
+    clearFeedback();
+
+    try {
+      await deactivateStudents([student.id]);
+      showFeedback("success", `Aluno ${student.name} desativado com sucesso.`);
+
+      const nextPage =
+        studentPage > 1 && students.length === 1 ? studentPage - 1 : studentPage;
+      await refreshOrMoveStudents(nextPage, appliedStudentSearch, studentActiveFilter);
+    } catch (error) {
+      showFeedback(
+        "error",
+        getApiErrorMessage(error, "Nao foi possivel desativar o aluno."),
+      );
+    } finally {
+      setDeactivatingStudentId(null);
     }
   }
 
@@ -287,6 +845,39 @@ export default function CompanyScreen() {
     );
   }
 
+  function confirmDeleteStudent(student: Student) {
+    Alert.alert(
+      "Excluir aluno",
+      `Deseja excluir o aluno ${student.name}?`,
+      [
+        { style: "cancel", text: "Cancelar" },
+        {
+          style: "destructive",
+          text: "Excluir",
+          onPress: () => {
+            void handleDeleteStudent(student);
+          },
+        },
+      ],
+    );
+  }
+
+  function confirmDeactivateStudent(student: Student) {
+    Alert.alert(
+      "Desativar aluno",
+      `Deseja desativar o aluno ${student.name}?`,
+      [
+        { style: "cancel", text: "Cancelar" },
+        {
+          text: "Desativar",
+          onPress: () => {
+            void handleDeactivateStudent(student);
+          },
+        },
+      ],
+    );
+  }
+
   function startEditing(bus: Bus) {
     clearFeedback();
     clearBusFormErrors();
@@ -296,11 +887,23 @@ export default function CompanyScreen() {
     setIsBusModalOpen(true);
   }
 
+  function startEditingStudent(student: Student) {
+    clearFeedback();
+    clearStudentFormErrors();
+    setEditingStudentId(student.id);
+    setStudentNameInput(student.name);
+    setStudentRegistrationInput(student.registration);
+    setStudentEmailInput(student.email ?? "");
+    setStudentPhoneInput(student.phone ?? "");
+    setStudentActiveInput(student.active);
+    setIsStudentModalOpen(true);
+  }
+
   function renderActiveSection() {
     if (activeSection === "buses") {
       return (
         <BusesSection
-          appliedSearch={appliedSearch}
+          appliedSearch={appliedBusSearch}
           buses={buses}
           capacityInput={capacityInput}
           deletingBusId={deletingBusId}
@@ -312,42 +915,42 @@ export default function CompanyScreen() {
           isLoadingBuses={isLoadingBuses}
           isModalOpen={isBusModalOpen}
           isSavingBus={isSavingBus}
-          lastPage={lastPage}
+          lastPage={busLastPage}
           onCapacityChange={(value) => {
             clearBusFormErrors();
             setCapacityInput(value.replace(/[^\d]/g, ""));
           }}
           onClearSearch={() => {
             clearFeedback();
-            setSearchInput("");
-            void refreshOrMove(1, "");
+            setBusSearchInput("");
+            void refreshOrMoveBuses(1, "");
           }}
           onCloseModal={closeBusModal}
           onDeleteBus={confirmDeleteBus}
           onEditBus={startEditing}
           onOpenCreateModal={openCreateBusModal}
           onPageChange={(nextPage) => {
-            void refreshOrMove(nextPage, appliedSearch);
+            void refreshOrMoveBuses(nextPage, appliedBusSearch);
           }}
           onPlateChange={(value) => {
             clearBusFormErrors();
             setPlateInput(sanitizePlate(value));
           }}
           onRefresh={() => {
-            void loadBuses(page, appliedSearch);
+            void loadBuses(busPage, appliedBusSearch);
           }}
           onSearch={() => {
             clearFeedback();
-            void refreshOrMove(1, searchInput.trim());
+            void refreshOrMoveBuses(1, busSearchInput.trim());
           }}
           onSubmit={() => {
             void handleSubmitBus();
           }}
-          page={page}
+          page={busPage}
           plateInput={plateInput}
-          searchInput={searchInput}
+          searchInput={busSearchInput}
           setSearchInput={(value) => {
-            setSearchInput(sanitizePlate(value));
+            setBusSearchInput(sanitizePlate(value));
           }}
           totalBuses={totalBuses}
           visibleCapacity={visibleCapacity}
@@ -357,11 +960,99 @@ export default function CompanyScreen() {
 
     if (activeSection === "students") {
       return (
-        <PlaceholderSection
-          actionLabel="alunos"
-          description="A estrutura desta secao ja esta pronta para receber CRUD de alunos com busca, formulario e lista administrativa."
-          icon={GraduationCap}
-          title="Alunos"
+        <StudentsSection
+          appliedSearch={appliedStudentSearch}
+          companyEmailDomain={companyEmailDomain}
+          currentFilter={studentActiveFilter}
+          deletingStudentId={deletingStudentId}
+          deactivatingStudentId={deactivatingStudentId}
+          editingStudentId={editingStudentId}
+          feedbackMessage={feedbackMessage}
+          feedbackTone={feedbackTone}
+          formErrorMessage={studentFormErrors.general}
+          formErrors={studentFormErrors}
+          isLoadingStudents={isLoadingStudents}
+          isModalOpen={isStudentModalOpen}
+          isRfidModalOpen={isStudentRfidModalOpen}
+          isLinkingRfid={isLinkingStudentRfid}
+          isSavingStudent={isSavingStudent}
+          lastPage={studentLastPage}
+          onActiveFilterChange={(value) => {
+            clearFeedback();
+            void refreshOrMoveStudents(1, appliedStudentSearch, value);
+          }}
+          onActiveInputChange={(value) => {
+            clearStudentFormErrors();
+            setStudentActiveInput(value);
+          }}
+          onClearSearch={() => {
+            clearFeedback();
+            setStudentSearchInput("");
+            void refreshOrMoveStudents(1, "", studentActiveFilter);
+          }}
+          onCloseModal={closeStudentModal}
+          onCloseRfidModal={closeStudentRfidModal}
+          onDeactivateStudent={confirmDeactivateStudent}
+          onDeleteStudent={confirmDeleteStudent}
+          onEditStudent={startEditingStudent}
+          onEmailChange={(value) => {
+            clearStudentFormErrors();
+            setStudentEmailInput(sanitizeStudentEmail(value));
+          }}
+          onNameChange={(value) => {
+            clearStudentFormErrors();
+            setStudentNameInput(sanitizeStudentName(value));
+          }}
+          onOpenCreateModal={openCreateStudentModal}
+          onOpenRfidModal={(student) => {
+            openStudentRfidModal(student);
+          }}
+          onPageChange={(nextPage) => {
+            void refreshOrMoveStudents(
+              nextPage,
+              appliedStudentSearch,
+              studentActiveFilter,
+            );
+          }}
+          onPhoneChange={(value) => {
+            clearStudentFormErrors();
+            setStudentPhoneInput(sanitizeStudentPhone(value));
+          }}
+          onRefresh={() => {
+            void loadStudents(studentPage, appliedStudentSearch, studentActiveFilter);
+          }}
+          onRegistrationChange={(value) => {
+            clearStudentFormErrors();
+            setStudentRegistrationInput(value.replace(/\s+/g, " "));
+          }}
+          onRfidInputChange={(value) => {
+            clearStudentRfidErrors();
+            setStudentRfidInput(sanitizeStudentRfid(value));
+          }}
+          onSearch={() => {
+            clearFeedback();
+            void refreshOrMoveStudents(1, studentSearchInput.trim(), studentActiveFilter);
+          }}
+          onSubmit={() => {
+            void handleSubmitStudent();
+          }}
+          onSubmitRfid={() => {
+            void handleSubmitStudentRfid();
+          }}
+          page={studentPage}
+          rfidFieldError={studentRfidFieldError}
+          rfidFormErrorMessage={studentRfidErrorMessage ?? undefined}
+          rfidInput={studentRfidInput}
+          rfidTargetName={studentRfidFlowTarget?.name ?? "Aluno"}
+          searchInput={studentSearchInput}
+          setSearchInput={setStudentSearchInput}
+          studentActiveInput={studentActiveInput}
+          studentEmailInput={studentEmailInput}
+          studentNameInput={studentNameInput}
+          studentPhoneInput={studentPhoneInput}
+          studentRegistrationInput={studentRegistrationInput}
+          students={students}
+          totalStudents={totalStudents}
         />
       );
     }

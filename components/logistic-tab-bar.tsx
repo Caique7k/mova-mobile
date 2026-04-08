@@ -1,6 +1,6 @@
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { CommonActions } from "@react-navigation/native";
-import TabBar from "@logisticinfotech/react-native-bottom-navigation";
+import TabBar from "@/components/logistic-fluid-bottom-navigation";
 import * as Haptics from "expo-haptics";
 import { useMemo } from "react";
 import {

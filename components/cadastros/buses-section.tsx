@@ -11,7 +11,7 @@ import {
   Trash2,
   X,
 } from "lucide";
-import { Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 
 import { BusFormModal } from "@/components/cadastros/bus-form-modal";
 import { FeedbackBanner } from "@/components/cadastros/ui";
@@ -43,6 +43,8 @@ function getCapacityLabel(value: number) {
   const count = formatCount(value);
   return value === 1 ? `${count} lugar` : `${count} lugares`;
 }
+
+const RESULTS_VIEWPORT_HEIGHT = 540;
 
 export function BusesSection({
   appliedSearch,
@@ -212,7 +214,13 @@ export function BusesSection({
             </View>
           </View>
         ) : buses.length > 0 ? (
-          <View className="mt-4 gap-3">
+          <ScrollView
+            nestedScrollEnabled
+            showsVerticalScrollIndicator
+            className="mt-4"
+            contentContainerStyle={{ gap: 12, paddingRight: 4 }}
+            style={{ maxHeight: RESULTS_VIEWPORT_HEIGHT }}
+          >
             {buses.map((bus) => (
               <View
                 key={bus.id}
@@ -242,47 +250,47 @@ export function BusesSection({
                         </View>
                       ) : null}
                     </View>
-
-                    <View className="mt-4 rounded-2xl bg-background-50 px-4 py-3">
-                      <Text className="text-xs font-semibold uppercase tracking-[1.5px] text-typography-500">
-                        Cadastro
-                      </Text>
-                      <Text className="mt-1 text-sm leading-6 text-typography-700">
-                        Criado em {formatBusDate(bus.createdAt)}
-                      </Text>
-                    </View>
-
-                    <View className="mt-4 flex-row gap-3">
-                      <Button
-                        variant="outline"
-                        className="flex-1 rounded-2xl"
-                        isDisabled={isSavingBus || deletingBusId === bus.id}
-                        onPress={() => {
-                          onEditBus(bus);
-                        }}
-                      >
-                        <LucideIcon color="#FC7C3A" icon={Pencil} size={16} />
-                        <ButtonText>Editar</ButtonText>
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        action="negative"
-                        className="flex-1 rounded-2xl"
-                        isDisabled={isSavingBus || deletingBusId === bus.id}
-                        onPress={() => {
-                          onDeleteBus(bus);
-                        }}
-                      >
-                        <LucideIcon color="#dc2626" icon={Trash2} size={16} />
-                        <ButtonText>Excluir</ButtonText>
-                      </Button>
-                    </View>
                   </View>
+                </View>
+
+                <View className="mt-4 rounded-2xl bg-background-50 px-4 py-3 items-center">
+                  <Text className="text-center text-xs font-semibold uppercase tracking-[1.5px] text-typography-500">
+                    Cadastro
+                  </Text>
+                  <Text className="mt-1 text-center text-sm leading-6 text-typography-700">
+                    Criado em {formatBusDate(bus.createdAt)}
+                  </Text>
+                </View>
+
+                <View className="mt-4 flex-row gap-3">
+                  <Button
+                    variant="outline"
+                    className="flex-1 rounded-2xl"
+                    isDisabled={isSavingBus || deletingBusId === bus.id}
+                    onPress={() => {
+                      onEditBus(bus);
+                    }}
+                  >
+                    <LucideIcon color="#FC7C3A" icon={Pencil} size={16} />
+                    <ButtonText>Editar</ButtonText>
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    action="negative"
+                    className="flex-1 rounded-2xl"
+                    isDisabled={isSavingBus || deletingBusId === bus.id}
+                    onPress={() => {
+                      onDeleteBus(bus);
+                    }}
+                  >
+                    <LucideIcon color="#dc2626" icon={Trash2} size={16} />
+                    <ButtonText>Excluir</ButtonText>
+                  </Button>
                 </View>
               </View>
             ))}
-          </View>
+          </ScrollView>
         ) : (
           <View className="mt-4 rounded-[24px] bg-background-0 px-4 py-5">
             <View className="flex-row items-start gap-3">
