@@ -262,6 +262,13 @@ export function UserFormModal({
     () => ROLE_OPTIONS.find((option) => option.role === roleInput) ?? ROLE_OPTIONS[0],
     [roleInput],
   );
+  const availableRoleOptions = useMemo(
+    () =>
+      isStudentLinkLocked
+        ? ROLE_OPTIONS.filter((option) => roleRequiresStudentLink(option.role))
+        : ROLE_OPTIONS,
+    [isStudentLinkLocked],
+  );
   const needsStudentLink = roleRequiresStudentLink(roleInput);
   const selectedStudent = useMemo(
     () =>
@@ -360,7 +367,6 @@ export function UserFormModal({
 
                   <Pressable
                     className="rounded-2xl border border-outline-200 bg-background-0 px-4 py-4"
-                    disabled={isStudentLinkLocked}
                     onPress={() => {
                       setIsRoleComboboxOpen((current) => !current);
                       setIsStudentComboboxOpen(false);
@@ -368,7 +374,6 @@ export function UserFormModal({
                     style={{
                       borderColor: isRoleComboboxOpen ? "#FC7C3A" : "#e2e8f0",
                       minHeight: 88,
-                      opacity: isStudentLinkLocked ? 0.8 : 1,
                     }}
                   >
                     <View className="flex-row items-center gap-3">
@@ -394,7 +399,7 @@ export function UserFormModal({
 
                   {isRoleComboboxOpen ? (
                     <View className="mt-3 gap-2 rounded-[24px] border border-outline-200 bg-background-0 px-4 py-4">
-                      {ROLE_OPTIONS.map((option) => (
+                      {availableRoleOptions.map((option) => (
                         <RoleOptionCard
                           key={option.role}
                           description={option.description}
@@ -411,7 +416,7 @@ export function UserFormModal({
 
                   <Text className="mt-2 text-sm leading-6 text-typography-500">
                     {isStudentLinkLocked
-                      ? "Este usuario ja esta vinculado a um aluno. Mantemos o perfil e o vinculo bloqueados na edicao para evitar inconsistencias."
+                      ? "Este usuario ja esta vinculado a um aluno. Voce pode alternar entre Aluno e Coordenador, mas mantemos o aluno bloqueado para preservar o vinculo."
                       : needsStudentLink
                         ? "Esse perfil exige aluno vinculado. Se ainda nao existir um aluno apto, cadastre o aluno primeiro."
                         : "Esse perfil pode ser criado direto aqui com nome, email da empresa e senha."}

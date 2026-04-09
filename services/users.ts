@@ -67,6 +67,11 @@ function normalizeName(value?: string) {
   return value?.replace(/\s+/g, " ").trim() ?? "";
 }
 
+function normalizeNameOrUndefined(value?: string) {
+  const normalized = normalizeName(value);
+  return normalized ? normalized : undefined;
+}
+
 function normalizeText(value?: string) {
   return value?.trim() ?? "";
 }
@@ -133,7 +138,7 @@ export async function fetchUserStudentCandidates(includeUserId?: string) {
 export async function createUser(input: CreateUserInput) {
   return post<UserRecord>("/users", {
     email: normalizeTextOrUndefined(input.email),
-    name: normalizeName(input.name),
+    name: normalizeNameOrUndefined(input.name),
     password: normalizeText(input.password),
     role: input.role,
     studentId: normalizeTextOrUndefined(input.studentId),

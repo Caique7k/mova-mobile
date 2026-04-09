@@ -2073,12 +2073,16 @@ export default function CompanyScreen() {
             void refreshOrMoveUsers(1, appliedUserSearch, userStatusFilter, value);
           }}
           onRoleInputChange={(value) => {
-            if (isLinkedUserProfileLocked) {
+            if (isLinkedUserProfileLocked && !roleRequiresStudentLink(value)) {
               return;
             }
 
             clearUserFormErrors();
             setUserRoleInput(value);
+
+            if (isLinkedUserProfileLocked) {
+              return;
+            }
 
             if (!roleRequiresStudentLink(value)) {
               setUserStudentIdInput("");

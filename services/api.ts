@@ -31,10 +31,21 @@ export function getApiErrorMessage(error: unknown, fallback: string) {
     if (
       error.response &&
       typeof error.response === "object" &&
-      "message" in error.response &&
-      typeof error.response.message === "string"
+      "message" in error.response
     ) {
-      return error.response.message;
+      if (typeof error.response.message === "string") {
+        return error.response.message;
+      }
+
+      if (Array.isArray(error.response.message)) {
+        const messages = error.response.message.filter(
+          (message): message is string => typeof message === "string" && message.trim().length > 0,
+        );
+
+        if (messages.length > 0) {
+          return messages.join(" ");
+        }
+      }
     }
 
     return error.status > 0 ? `Erro ${error.status}: ${error.message}` : error.message;
