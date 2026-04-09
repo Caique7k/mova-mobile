@@ -252,15 +252,15 @@ export default function Home() {
             onSignOut={handleLogout}
           />
 
-          {isLoading && !dashboard && (
+          {isLoading && !dashboard ? (
             <View className="rounded-[28px] bg-amber-50 px-5 py-4">
               <Text className="text-sm font-semibold text-amber-700">
                 Carregando dados em tempo real...
               </Text>
             </View>
-          )}
+          ) : null}
 
-          {error && !isAccessDenied && (
+          {error && !isAccessDenied ? (
             <View className="rounded-[28px] bg-red-50 px-5 py-4">
               <Text className="text-sm font-semibold text-red-700">{error}</Text>
               <Text className="mt-1 text-xs text-red-600">
@@ -269,9 +269,9 @@ export default function Home() {
                   : "Tente novamente em instantes."}
               </Text>
             </View>
-          )}
+          ) : null}
 
-          {isAccessDenied && (
+          {isAccessDenied ? (
             <View className="rounded-[28px] bg-red-50 px-5 py-5">
               <Text className="text-xs font-semibold uppercase tracking-[1.5px] text-red-700">
                 Acesso restrito
@@ -284,15 +284,15 @@ export default function Home() {
                 do backend, ele deixa de exibir numeros ficticios e respeita o
                 bloqueio.
               </Text>
-              {sessionRoles.length > 0 && (
+              {sessionRoles.length > 0 ? (
                 <Text className="mt-3 text-xs font-semibold uppercase tracking-[1.5px] text-red-600">
                   Perfis encontrados: {sessionRoles.join(", ")}
                 </Text>
-              )}
+              ) : null}
             </View>
-          )}
+          ) : null}
 
-          {dashboard && (
+          {dashboard ? (
             <>
               <View className="rounded-[28px] bg-background-0 px-5 py-5">
                 <View className="flex-row items-start justify-between gap-4">
@@ -465,7 +465,7 @@ export default function Home() {
                 </View>
               </View>
             </>
-          )}
+          ) : null}
         </View>
       </ScrollView>
     </SafeAreaView>

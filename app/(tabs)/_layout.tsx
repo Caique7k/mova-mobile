@@ -3,7 +3,8 @@ import { LucideIcon } from "@/components/ui/lucide-icon";
 import { useAuth } from "@/contexts/auth-context";
 import {
   canManageCompany,
-  canViewOperations,
+  canViewDashboardTab,
+  canViewLiveLocation,
   getPrimarySessionRole,
   shouldShowRoleHub,
 } from "@/services/auth";
@@ -12,9 +13,10 @@ import {
   Building,
   Building2,
   CircleUser,
+  Compass,
   FolderKanban,
   LayoutDashboard,
-  LayoutGrid,
+  MapPinned,
   NotebookPen,
   UserRound,
 } from "lucide";
@@ -24,7 +26,8 @@ const TAB_ACCENT_COLOR = "#FC7C3A";
 
 export default function TabLayout() {
   const { session } = useAuth();
-  const showDashboardTab = canViewOperations(session);
+  const showDashboardTab = canViewDashboardTab(session);
+  const showLocationTab = canViewLiveLocation(session);
   const showCompanyTab = canManageCompany(session);
   const showRoleHubTab = shouldShowRoleHub(session);
   const primaryRole = getPrimarySessionRole(session);
@@ -56,7 +59,22 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused, size }) => (
             <LucideIcon
               color={color}
-              icon={focused ? LayoutDashboard : LayoutGrid}
+              icon={focused ? LayoutDashboard : LayoutDashboard}
+              size={size}
+              strokeWidth={focused ? 2.4 : 2}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="location"
+        options={{
+          href: showLocationTab ? undefined : null,
+          title: "Localizacao",
+          tabBarIcon: ({ color, focused, size }) => (
+            <LucideIcon
+              color={color}
+              icon={focused ? MapPinned : Compass}
               size={size}
               strokeWidth={focused ? 2.4 : 2}
             />

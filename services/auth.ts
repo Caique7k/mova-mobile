@@ -50,6 +50,9 @@ export type UserRole =
   | "COORDINATOR";
 
 const companyAdminRoles = ["ADMIN"] as const;
+const dashboardTabRoles = ["ADMIN", "DRIVER"] as const;
+const liveLocationRoles = ["ADMIN", "COORDINATOR", "DRIVER", "USER"] as const;
+const locationFirstRoles = ["COORDINATOR", "USER"] as const;
 const operationsRoles = ["ADMIN", "COORDINATOR", "DRIVER"] as const;
 const platformAdminRoles = ["PLATFORM_ADMIN"] as const;
 const studentRoles = ["USER"] as const;
@@ -183,6 +186,14 @@ export function canViewOperations(session: AuthSession | null) {
   return hasSessionRole(session, operationsRoles, true);
 }
 
+export function canViewDashboardTab(session: AuthSession | null) {
+  return hasSessionRole(session, dashboardTabRoles, false);
+}
+
+export function canViewLiveLocation(session: AuthSession | null) {
+  return hasSessionRole(session, liveLocationRoles, true);
+}
+
 export function canManageCompany(session: AuthSession | null) {
   return hasSessionRole(session, companyAdminRoles, false);
 }
@@ -201,22 +212,34 @@ export function shouldShowRoleHub(session: AuthSession | null) {
 }
 
 export function canAccessDashboard(session: AuthSession | null) {
-  return canViewOperations(session);
+  return canViewDashboardTab(session);
+}
+
+export function shouldOpenLocationFirst(session: AuthSession | null) {
+  return hasSessionRole(session, locationFirstRoles, false);
 }
 
 export function getDefaultAuthorizedRoute(session: AuthSession | null) {
   const primaryRole = getPrimarySessionRole(session);
 
-  if (primaryRole === "PLATFORM_ADMIN" || primaryRole === "USER") {
+  if (primaryRole === "PLATFORM_ADMIN") {
     return "/(tabs)/explore" as const;
   }
 
-  if (canViewOperations(session)) {
+  if (shouldOpenLocationFirst(session)) {
+    return "/(tabs)/location" as const;
+  }
+
+  if (canViewDashboardTab(session)) {
     return "/(tabs)" as const;
   }
 
   if (canManageCompany(session)) {
     return "/(tabs)/empresa" as const;
+  }
+
+  if (canViewLiveLocation(session)) {
+    return "/(tabs)/location" as const;
   }
 
   return "/(tabs)/explore" as const;
@@ -281,7 +304,7 @@ function collectPayloads(input: unknown): JsonRecord[] {
 
 function collectNestedRecords(input: unknown, maxDepth = 4): JsonRecord[] {
   const records: JsonRecord[] = [];
-  const queue: Array<{ depth: number; value: unknown }> = [{ depth: 0, value: input }];
+  const queue: { depth: number; value: unknown }[] = [{ depth: 0, value: input }];
 
   while (queue.length > 0) {
     const current = queue.shift();

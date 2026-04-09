@@ -39,7 +39,8 @@ export function getApiErrorMessage(error: unknown, fallback: string) {
 
       if (Array.isArray(error.response.message)) {
         const messages = error.response.message.filter(
-          (message): message is string => typeof message === "string" && message.trim().length > 0,
+          (message: unknown): message is string =>
+            typeof message === "string" && message.trim().length > 0,
         );
 
         if (messages.length > 0) {
