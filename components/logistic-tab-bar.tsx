@@ -1,7 +1,6 @@
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { CommonActions } from "@react-navigation/native";
 import TabBar from "@/components/logistic-fluid-bottom-navigation";
-import { LucideIcon } from "@/components/ui/lucide-icon";
 import { useAuth } from "@/contexts/auth-context";
 import {
   canViewCompanyProfileTab,
@@ -11,15 +10,8 @@ import {
   shouldShowRoleHub,
 } from "@/services/auth";
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
-import { LogOut } from "lucide";
 import { useMemo } from "react";
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  View,
-} from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type FluidTabOption = BottomTabBarProps["descriptors"][string]["options"] & {
@@ -45,8 +37,7 @@ export function LogisticTabBar({
   navigation,
   state,
 }: BottomTabBarProps) {
-  const router = useRouter();
-  const { session, signOut } = useAuth();
+  const { session } = useAuth();
   const insets = useSafeAreaInsets();
 
   const visibleRoutes = useMemo(
@@ -141,15 +132,6 @@ export function LogisticTabBar({
     );
   }
 
-  async function handleSignOut() {
-    if (Platform.OS === "ios" || Platform.OS === "android") {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-
-    await signOut();
-    router.replace("/login");
-  }
-
   if (values.length === 0) {
     return null;
   }
@@ -181,21 +163,6 @@ export function LogisticTabBar({
           values={values}
         />
       </View>
-
-      <Pressable
-        accessibilityLabel="Sair da conta"
-        onPress={() => {
-          void handleSignOut();
-        }}
-        style={[
-          styles.logoutButton,
-          {
-            bottom: Math.max(insets.bottom + 14, 14),
-          },
-        ]}
-      >
-        <LucideIcon color="#dc2626" icon={LogOut} size={18} />
-      </Pressable>
     </View>
   );
 }
@@ -212,22 +179,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.14,
     shadowRadius: 22,
-  },
-  logoutButton: {
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderColor: "#fecaca",
-    borderRadius: 22,
-    borderWidth: 1,
-    height: 44,
-    justifyContent: "center",
-    position: "absolute",
-    right: 18,
-    shadowColor: "#7f1d1d",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    width: 44,
   },
   wrapper: {
     bottom: 0,

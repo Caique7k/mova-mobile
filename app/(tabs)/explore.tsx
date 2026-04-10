@@ -167,7 +167,7 @@ export default function ExploreScreen() {
             <View className="mt-3 flex-row items-center gap-3">
               <LucideIcon color="#dc2626" icon={LogOut} size={18} />
               <Text className="text-sm leading-6 text-typography-700">
-                O botao de sair continua disponivel no topo desta tela.
+                A opcao Sair agora fica fixa como ultimo item da barra inferior.
               </Text>
             </View>
           </View>

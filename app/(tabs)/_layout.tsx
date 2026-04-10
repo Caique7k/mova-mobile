@@ -19,6 +19,7 @@ import {
   FolderKanban,
   GraduationCap,
   LayoutDashboard,
+  LogOut,
   MapPinned,
   NotebookPen,
   UserRound,
@@ -135,6 +136,20 @@ export default function TabLayout() {
                     ? UserRound
                     : CircleUser
               }
+              size={size}
+              strokeWidth={focused ? 2.4 : 2}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="logout"
+        options={{
+          title: "Sair",
+          tabBarIcon: ({ color, focused, size }) => (
+            <LucideIcon
+              color={focused ? color : "#dc2626"}
+              icon={LogOut}
               size={size}
               strokeWidth={focused ? 2.4 : 2}
             />
