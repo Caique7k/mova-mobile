@@ -53,8 +53,7 @@ export default function LogoutScreen() {
               Saindo da conta
             </Text>
             <Text className="mt-3 text-center text-sm leading-6 text-typography-600">
-              Estamos encerrando sua sessao com seguranca e levando voce para o
-              login.
+              Estamos encerrando sua sessão com segurança e levando você para o login.
             </Text>
             <ActivityIndicator color="#FC7C3A" size="small" style={{ marginTop: 20 }} />
           </View>

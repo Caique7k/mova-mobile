@@ -88,7 +88,7 @@ export default function CompanyTabScreen() {
     } catch (error) {
       showFeedback(
         "error",
-        getApiErrorMessage(error, "Nao foi possivel carregar os dados da empresa."),
+        getApiErrorMessage(error, "Não foi possível carregar os dados da empresa."),
       );
     } finally {
       setIsLoadingCompanyProfile(false);
@@ -124,7 +124,7 @@ export default function CompanyTabScreen() {
 
     if (contactName && contactName.length < 3) {
       nextErrors.contactName =
-        "Digite pelo menos 3 caracteres para o nome do responsavel.";
+        "Digite pelo menos 3 caracteres para o nome do responsável.";
     }
 
     if (contactPhone) {
@@ -132,7 +132,7 @@ export default function CompanyTabScreen() {
 
       if (digits.length < COMPANY_PHONE_MIN_LENGTH) {
         nextErrors.contactPhone =
-          "Informe um telefone valido ou deixe o campo em branco.";
+          "Informe um telefone válido ou deixe o campo em branco.";
       }
     }
 
@@ -177,7 +177,7 @@ export default function CompanyTabScreen() {
     } catch (error) {
       showFeedback(
         "error",
-        getApiErrorMessage(error, "Nao foi possivel atualizar os dados da empresa."),
+        getApiErrorMessage(error, "Não foi possível atualizar os dados da empresa."),
       );
     } finally {
       setIsSavingCompanyProfile(false);
@@ -191,8 +191,8 @@ export default function CompanyTabScreen() {
           <View className="gap-5">
             <PlatformHeader
               title="Empresa"
-              subtitle="Esta area fica disponivel apenas para administradores da empresa."
-              detail={user?.email ?? "Sessao autenticada"}
+              subtitle="Esta área fica disponível apenas para administradores da empresa."
+              detail={user?.email ?? "Sessão autenticada"}
             />
 
             <View className="rounded-[28px] bg-red-50 px-5 py-5">
@@ -200,10 +200,10 @@ export default function CompanyTabScreen() {
                 Acesso restrito
               </Text>
               <Text className="mt-2 text-2xl font-bold text-red-900">
-                Seu perfil nao pode editar os dados da empresa.
+                Seu perfil não pode editar os dados da empresa.
               </Text>
               <Text className="mt-2 text-sm leading-6 text-red-700">
-                Apenas usuarios `ADMIN` podem alterar o cadastro principal da empresa no app.
+                Apenas usuários `ADMIN` podem alterar o cadastro principal da empresa no app.
               </Text>
             </View>
           </View>
@@ -218,8 +218,8 @@ export default function CompanyTabScreen() {
         <View className="gap-5">
           <PlatformHeader
             title="Empresa"
-            subtitle="Edite os dados cadastrais principais da empresa, contato e informacoes do plano."
-            detail={company?.name ?? user?.email ?? "Sessao autenticada"}
+            subtitle="Edite os dados principais da empresa, incluindo contato e informações do plano."
+            detail={company?.name ?? user?.email ?? "Sessão autenticada"}
           />
 
           <CompanyProfileSection

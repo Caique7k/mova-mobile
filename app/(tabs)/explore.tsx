@@ -53,9 +53,9 @@ export default function ExploreScreen() {
     router.replace("/login");
   }
 
-  const title = "Gestao da plataforma";
+  const title = "Gestão da plataforma";
   const subtitle =
-    "Esse perfil e o seu hub de controle: empresas cadastradas, cobranca mensal e ativacao ou bloqueio de acesso.";
+    "Este perfil é o seu hub de controle: empresas cadastradas, cobrança mensal e controle de acesso.";
 
   if (!isRoleHub) {
     return (
@@ -63,9 +63,9 @@ export default function ExploreScreen() {
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
           <View className="gap-5">
             <PlatformHeader
-              title="Area complementar"
-              subtitle="Esta rota fica reservada para PLATFORM_ADMIN no mobile, seguindo a regra definida para a navegacao por perfil."
-              detail={user?.email ?? "Sessao autenticada"}
+              title="Área complementar"
+              subtitle="Esta rota fica reservada para PLATFORM_ADMIN no mobile, seguindo a navegação definida por perfil."
+              detail={user?.email ?? "Sessão autenticada"}
               onSignOut={handleLogout}
             />
 
@@ -74,12 +74,12 @@ export default function ExploreScreen() {
                 Acesso restrito
               </Text>
               <Text className="mt-2 text-2xl font-bold text-red-900">
-                Esta area nao pertence ao seu perfil.
+                Esta área não pertence ao seu perfil.
               </Text>
               <Text className="mt-2 text-sm leading-6 text-red-700">
-                ADMIN, DRIVER, COORDINATOR e USER usam as areas operacionais do
+                ADMIN, DRIVER, COORDINATOR e USER usam as áreas operacionais do
                 app. Se esta tela foi aberta manualmente, o mobile bloqueou o
-                conteudo para manter a navegacao por perfil.
+                conteúdo para manter a navegação por perfil.
               </Text>
               {roles.length > 0 && (
                 <Text className="mt-3 text-xs font-semibold uppercase tracking-[1.5px] text-red-600">
@@ -100,7 +100,7 @@ export default function ExploreScreen() {
           <PlatformHeader
             title={title}
             subtitle={subtitle}
-            detail={user?.email ?? "Sessao autenticada"}
+            detail={user?.email ?? "Sessão autenticada"}
             onSignOut={handleLogout}
           />
 
@@ -113,23 +113,23 @@ export default function ExploreScreen() {
             </Text>
             <Text className="mt-2 text-sm leading-6 text-typography-600">
               {roles.length > 0
-                ? `Perfis encontrados na sessao: ${roles.join(", ")}.`
-                : "Nenhum perfil explicito veio na sessao; o app segue em modo de compatibilidade."}
+                ? `Perfis encontrados na sessão: ${roles.join(", ")}.`
+                : "Nenhum perfil explícito foi encontrado na sessão; o app segue em modo de compatibilidade."}
             </Text>
           </View>
 
           <InfoCard
-            description="Aqui fica a visao central das empresas cadastradas na plataforma, com o ponto de entrada para acompanhar cada conta."
+            description="Aqui fica a visão central das empresas cadastradas na plataforma, com o ponto de entrada para acompanhar cada conta."
             icon={Building2}
             title="Empresas cadastradas"
           />
           <InfoCard
-            description="Os boletos mensais de cada empresa entram nesta area para voce acompanhar cobranca, vencimentos e situacao financeira."
+            description="Os boletos mensais de cada empresa entram nesta área para acompanhamento de cobrança, vencimentos e situação financeira."
             icon={FileText}
             title="Boletos mensais"
           />
           <InfoCard
-            description="Ativar, desativar e controlar o acesso das empresas tambem pertence a este perfil, como camada administrativa da plataforma."
+            description="Ativar, desativar e controlar o acesso das empresas também pertence a este perfil, como camada administrativa da plataforma."
             icon={Power}
             title="Controle de acesso"
           />
@@ -144,8 +144,8 @@ export default function ExploreScreen() {
                   Escopo do PLATFORM_ADMIN
                 </Text>
                 <Text className="mt-2 text-sm leading-6 text-typography-600">
-                  Esse usuario nao e operacional como ADMIN, DRIVER, COORDINATOR
-                  ou USER. Ele existe para a administracao geral do Unipass.
+                  Esse usuário não é operacional como ADMIN, DRIVER, COORDINATOR
+                  ou USER. Ele existe para a administração geral do Unipass.
                 </Text>
               </View>
             </View>
@@ -155,7 +155,7 @@ export default function ExploreScreen() {
             <View className="flex-row items-center gap-3">
               <LucideIcon color="#475569" icon={User} size={18} />
               <Text className="text-sm leading-6 text-typography-700">
-                Usuario: {user?.name ?? user?.email ?? "Nao identificado"}
+                Usuário: {user?.name ?? user?.email ?? "Não identificado"}
               </Text>
             </View>
             <View className="mt-3 flex-row items-center gap-3">
@@ -167,7 +167,7 @@ export default function ExploreScreen() {
             <View className="mt-3 flex-row items-center gap-3">
               <LucideIcon color="#dc2626" icon={LogOut} size={18} />
               <Text className="text-sm leading-6 text-typography-700">
-                A opcao Sair agora fica fixa como ultimo item da barra inferior.
+                A opção Sair fica fixa como último item da barra inferior.
               </Text>
             </View>
           </View>

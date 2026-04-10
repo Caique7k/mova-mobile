@@ -88,7 +88,7 @@ function formatChartLabel(date: string) {
 
 function formatDelta(change: number) {
   if (change === 0) {
-    return "Sem variacao vs ontem";
+    return "Estável";
   }
 
   const prefix = change > 0 ? "+" : "-";
@@ -134,7 +134,7 @@ export async function fetchRealDashboardData(): Promise<DashboardSnapshot> {
       format: "number",
       id: "active-students",
       label: "Alunos ativos",
-      note: "Base ativa vinculada a empresa.",
+      note: "Base ativa vinculada à empresa.",
       tone: "emerald",
       value: data.activeStudents,
     },
@@ -143,7 +143,7 @@ export async function fetchRealDashboardData(): Promise<DashboardSnapshot> {
       format: "number",
       id: "rfid-reads",
       label: "Leituras RFID",
-      note: "Embarques detectados hoje.",
+      note: "Embarques registrados hoje.",
       tone: "sky",
       value: data.rfidReads,
     },
@@ -152,7 +152,7 @@ export async function fetchRealDashboardData(): Promise<DashboardSnapshot> {
       format: "number",
       id: "trips-today",
       label: "Viagens hoje",
-      note: "Viagens que iniciaram ao longo do dia.",
+      note: "Viagens iniciadas ao longo do dia.",
       tone: "amber",
       value: data.tripsToday,
     },
@@ -161,7 +161,7 @@ export async function fetchRealDashboardData(): Promise<DashboardSnapshot> {
       format: "number",
       id: "bus-capacity",
       label: "Passageiros transportados",
-      note: "Total embarcado na operacao de hoje.",
+      note: "Total embarcado na operação de hoje.",
       tone: "slate",
       value: data.busCapacityUsed,
     },
@@ -190,7 +190,7 @@ export async function fetchRealDashboardData(): Promise<DashboardSnapshot> {
       value: data.tripsToday,
     },
     {
-      description: "Passageiros contabilizados nas viagens da operacao.",
+      description: "Passageiros contabilizados nas viagens da operação.",
       id: "capacity-summary",
       label: "Passageiros",
       status: getChangeStatus(data.changeBuses),
@@ -201,10 +201,10 @@ export async function fetchRealDashboardData(): Promise<DashboardSnapshot> {
   return {
     barSeries: normalizeSeries(data.charts?.boardings, "Hoje"),
     description:
-      "Leitura consolidada das metricas operacionais da empresa nos ultimos 7 dias.",
+      "Leitura consolidada das métricas operacionais da empresa nos últimos 7 dias.",
     lineSeries: normalizeSeries(data.charts?.trips, "Hoje"),
     stats,
-    title: "Dashboard de Operacoes",
+    title: "Dashboard de operações",
     tracker,
     updatedAtLabel: formatUpdatedAtLabel(),
   };

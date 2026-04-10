@@ -5,6 +5,7 @@ import { UniHubSection } from "@/components/cadastros/unihub-section";
 import { UsersSection } from "@/components/cadastros/users-section";
 import { CatalogNavItem } from "@/components/cadastros/ui";
 import type { CatalogSectionKey } from "@/components/cadastros/types";
+import { PlatformHeader } from "@/components/platform-header";
 import { useAuth } from "@/contexts/auth-context";
 import {
   canViewCompanyTab,
@@ -265,7 +266,7 @@ async function requestUserPage(
 }
 
 export default function CompanyScreen() {
-  const { session } = useAuth();
+  const { company, session, user } = useAuth();
   const { width } = useWindowDimensions();
   const primaryRole = getPrimarySessionRole(session);
   const canViewCompanyArea = canViewCompanyTab(session);
@@ -282,6 +283,10 @@ export default function CompanyScreen() {
   );
   const companyScreenTitle =
     primaryRole === "COORDINATOR" ? "Alunos" : "Cadastros";
+  const companyScreenSubtitle =
+    primaryRole === "COORDINATOR"
+      ? "Acompanhe os alunos cadastrados e gerencie os dados essenciais desta area."
+      : "Centralize os cadastros operacionais da empresa em uma unica area.";
   const companyEmailDomain =
     typeof session?.user.emailDomain === "string" && session.user.emailDomain.trim()
       ? session.user.emailDomain.trim().toLowerCase()
@@ -2277,9 +2282,11 @@ export default function CompanyScreen() {
       <SafeAreaView className="flex-1 bg-background-50">
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
           <View className="gap-5">
-            <Text className="text-[32px] font-bold leading-9 text-typography-950">
-              {companyScreenTitle}
-            </Text>
+            <PlatformHeader
+              title={companyScreenTitle}
+              subtitle={companyScreenSubtitle}
+              detail={user?.email ?? "Sessao autenticada"}
+            />
 
             <View className="rounded-[28px] bg-red-50 px-5 py-5">
               <Text className="text-xs font-semibold uppercase tracking-[1.5px] text-red-700">
@@ -2309,9 +2316,11 @@ export default function CompanyScreen() {
     <SafeAreaView className="flex-1 bg-background-50">
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
         <View className="gap-5">
-          <Text className="text-[32px] font-bold leading-9 text-typography-950">
-            {companyScreenTitle}
-          </Text>
+          <PlatformHeader
+            title={companyScreenTitle}
+            subtitle={companyScreenSubtitle}
+            detail={company?.name ?? user?.email ?? "Sessao autenticada"}
+          />
 
           <View className="rounded-[32px] bg-background-0 p-4">
             {isCompactRail ? (

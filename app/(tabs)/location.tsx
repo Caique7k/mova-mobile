@@ -18,18 +18,20 @@ import {
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-function getStateLabel(state: ReturnType<typeof useLiveLocation>["viewModel"]["state"]) {
+function getStateLabel(
+  state: ReturnType<typeof useLiveLocation>["viewModel"]["state"],
+) {
   switch (state) {
     case "live":
       return "Ao vivo";
     case "stale":
-      return "Ultima posicao";
+      return "Última posição";
     case "needs-pairing":
       return "Pareamento pendente";
     case "no-online-device":
       return "Sem dispositivo online";
     default:
-      return "Sem onibus";
+      return "Sem ônibus";
   }
 }
 
@@ -40,21 +42,23 @@ function getStateCopy(
   if (state === "no-buses") {
     return {
       description: isStudentOrCoordinator
-        ? "Ainda nao ha onibus disponiveis para acompanhamento nesta empresa."
-        : "Cadastre um onibus na aba Cadastros para iniciar a visualizacao em tempo real.",
-      title: "Nenhum onibus cadastrado",
+        ? "Ainda não há ônibus disponíveis para acompanhamento nesta empresa."
+        : "Cadastre um ônibus na aba Cadastros para iniciar a visualização em tempo real.",
+      title: "Nenhum ônibus cadastrado",
     };
   }
 
   if (state === "needs-pairing") {
     return {
-      description: "Esse onibus ainda nao possui um UniHub ativo vinculado para enviar telemetria.",
+      description:
+        "Esse ônibus ainda não possui um UniHub ativo vinculado para enviar telemetria.",
       title: "Pareie um UniHub primeiro",
     };
   }
 
   return {
-    description: "Ainda nao recebemos uma leitura recente de localizacao para este onibus.",
+    description:
+      "Ainda não recebemos uma leitura recente de localização para este ônibus.",
     title: "Sem dispositivo online",
   };
 }
@@ -76,7 +80,9 @@ function TopStat({
           {label}
         </Text>
       </View>
-      <Text className="mt-2 text-base font-semibold text-typography-950">{value}</Text>
+      <Text className="mt-2 text-base font-semibold text-typography-950">
+        {value}
+      </Text>
     </View>
   );
 }
@@ -162,15 +168,15 @@ export default function LocationScreen() {
           <PlatformHeader
             title={
               isStudentOrCoordinator
-                ? "Localizacao dos onibus"
-                : company?.name ?? "Localizacao operacional"
+                ? "Localização dos ônibus"
+                : (company?.name ?? "Localização operacional")
             }
             subtitle={
               isStudentOrCoordinator
-                ? "Acompanhe as localizacoes mais recentes dos onibus da empresa em uma tela leve e direta."
-                : "Escolha um onibus e acompanhe no mapa a telemetria mais recente enviada pelo UniHub."
+                ? "Acompanhe as localizações mais recentes dos ônibus da empresa em uma tela leve e direta."
+                : "Escolha um ônibus e acompanhe no mapa a telemetria mais recente enviada pelo UniHub."
             }
-            detail={user?.email ?? "Sessao autenticada"}
+            detail={user?.email ?? "Sessão autenticada"}
             onSignOut={handleLogout}
           />
 
@@ -180,7 +186,7 @@ export default function LocationScreen() {
                 Acesso restrito
               </Text>
               <Text className="mt-2 text-2xl font-bold text-red-900">
-                Seu perfil nao pode visualizar o mapa ao vivo.
+                Seu perfil não pode visualizar o mapa ao vivo.
               </Text>
             </View>
           ) : (
@@ -192,10 +198,10 @@ export default function LocationScreen() {
                       Mapa ao vivo
                     </Text>
                     <Text className="mt-2 text-[28px] font-bold leading-9 text-typography-950">
-                      Localizacao em tempo real
+                      Localização em tempo real
                     </Text>
                     <Text className="mt-2 text-sm leading-6 text-typography-600">
-                      Acompanhamento automatico com atualizacao a cada 5 segundos.
+                      Acompanhamento atualizado a cada 5 segundos.
                     </Text>
                   </View>
 
@@ -215,7 +221,11 @@ export default function LocationScreen() {
                 </View>
 
                 <View className="mt-5 flex-row flex-wrap justify-between gap-y-4">
-                  <TopStat icon={Route} label="Onibus" value={String(buses.length)} />
+                  <TopStat
+                    icon={Route}
+                    label="Ônibus"
+                    value={String(buses.length)}
+                  />
                   <TopStat
                     icon={SmartphoneNfc}
                     label="UniHub"
@@ -228,7 +238,7 @@ export default function LocationScreen() {
                   />
                   <TopStat
                     icon={MapPinned}
-                    label="Ultima leitura"
+                    label="Última leitura"
                     value={viewModel.summary.lastUpdateLabel}
                   />
                 </View>
@@ -236,16 +246,16 @@ export default function LocationScreen() {
 
               <View className="rounded-[28px] bg-background-0 px-5 py-5">
                 <Text className="text-lg font-semibold text-typography-950">
-                  Escolha o onibus
+                  Escolha o ônibus
                 </Text>
                 <Text className="mt-2 text-sm leading-6 text-typography-600">
-                  Toque em um card para mudar o veiculo acompanhado no mapa.
+                  Toque em um card para mudar o veículo acompanhado no mapa.
                 </Text>
 
                 {loading && buses.length === 0 ? (
                   <View className="mt-4 rounded-[24px] bg-amber-50 px-4 py-4">
                     <Text className="text-sm font-semibold text-amber-700">
-                      Carregando a lista de onibus...
+                      Carregando a lista de ônibus...
                     </Text>
                   </View>
                 ) : buses.length > 0 ? (
@@ -279,12 +289,16 @@ export default function LocationScreen() {
                           <View
                             className="mt-4 self-start rounded-full px-3 py-2"
                             style={{
-                              backgroundColor: isSelected ? "#ffedd5" : "#ffffff",
+                              backgroundColor: isSelected
+                                ? "#ffedd5"
+                                : "#ffffff",
                             }}
                           >
                             <Text
                               className="text-xs font-semibold"
-                              style={{ color: isSelected ? "#c2410c" : "#64748b" }}
+                              style={{
+                                color: isSelected ? "#c2410c" : "#64748b",
+                              }}
                             >
                               {isSelected ? "Selecionado" : "Selecionar"}
                             </Text>
@@ -296,11 +310,11 @@ export default function LocationScreen() {
                 ) : (
                   <View className="mt-4 rounded-[24px] bg-background-50 px-4 py-4">
                     <Text className="text-sm font-semibold text-typography-900">
-                      Nenhum onibus disponivel
+                      Nenhum ônibus disponível
                     </Text>
                     <Text className="mt-2 text-sm leading-6 text-typography-600">
-                      Assim que a empresa cadastrar onibus, eles aparecerao aqui para
-                      acompanhamento.
+                      Assim que a empresa cadastrar ônibus, eles aparecerão aqui
+                      para acompanhamento.
                     </Text>
                   </View>
                 )}
@@ -309,13 +323,18 @@ export default function LocationScreen() {
               {error ? (
                 <View className="rounded-[28px] bg-red-50 px-5 py-4">
                   <View className="flex-row items-start gap-3">
-                    <LucideIcon color="#b91c1c" icon={AlertTriangle} size={18} />
+                    <LucideIcon
+                      color="#b91c1c"
+                      icon={AlertTriangle}
+                      size={18}
+                    />
                     <View className="flex-1">
                       <Text className="text-sm font-semibold text-red-700">
                         {error}
                       </Text>
                       <Text className="mt-1 text-xs text-red-600">
-                        Mantemos a ultima leitura disponivel enquanto tentamos atualizar.
+                        Mantemos a última leitura disponível enquanto
+                        atualizamos os dados.
                       </Text>
                     </View>
                   </View>
@@ -359,7 +378,7 @@ export default function LocationScreen() {
                     />
                     <DetailCard
                       icon={Compass}
-                      label="Ultima atualizacao"
+                      label="Última atualização"
                       value={viewModel.summary.lastUpdateLabel}
                     />
                   </View>

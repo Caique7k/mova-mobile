@@ -72,7 +72,7 @@ export default function TabLayout() {
         name="location"
         options={{
           href: showLocationTab ? undefined : null,
-          title: "Localizacao",
+          title: "Localização",
           tabBarIcon: ({ color, focused, size }) => (
             <LucideIcon
               color={color}
