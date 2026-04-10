@@ -1,7 +1,5 @@
-import { LucideIcon } from "@/components/ui/lucide-icon";
 import { Image } from "expo-image";
-import { LogOut } from "lucide";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 const logoUnipass = require("../assets/images/logo_unipass.png");
 
@@ -14,7 +12,6 @@ type PlatformHeaderProps = {
 
 export function PlatformHeader({
   detail,
-  onSignOut,
   subtitle,
   title,
 }: PlatformHeaderProps) {
@@ -45,19 +42,6 @@ export function PlatformHeader({
                 style={{ width: 108, height: 28 }}
               />
             </View>
-
-            {onSignOut ? (
-              <Pressable
-                accessibilityLabel="Sair"
-                className="ml-auto h-11 w-11 items-center justify-center rounded-2xl"
-                onPress={() => {
-                  void onSignOut();
-                }}
-                style={{ backgroundColor: "rgba(255, 255, 255, 0.08)" }}
-              >
-                <LucideIcon icon={LogOut} size={18} color="#FFFFFF" />
-              </Pressable>
-            ) : null}
           </View>
 
           <View>

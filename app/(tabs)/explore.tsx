@@ -1,13 +1,16 @@
 import { PlatformHeader } from "@/components/platform-header";
 import { LucideIcon } from "@/components/ui/lucide-icon";
 import { useAuth } from "@/contexts/auth-context";
-import {
-  extractSessionRoles,
-  getPrimarySessionRole,
-  shouldShowRoleHub,
-} from "@/services/auth";
+import { extractSessionRoles, shouldShowRoleHub } from "@/services/auth";
 import { useRouter } from "expo-router";
-import { Building2, Compass, CreditCard, LogOut, MapPinned, User } from "lucide";
+import {
+  Building2,
+  FileText,
+  LogOut,
+  Power,
+  ShieldCheck,
+  User,
+} from "lucide";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -42,7 +45,6 @@ function InfoCard({
 export default function ExploreScreen() {
   const router = useRouter();
   const { company, session, signOut, user } = useAuth();
-  const primaryRole = getPrimarySessionRole(session);
   const roles = extractSessionRoles(session);
   const isRoleHub = shouldShowRoleHub(session);
 
@@ -51,12 +53,9 @@ export default function ExploreScreen() {
     router.replace("/login");
   }
 
-  const title =
-    primaryRole === "PLATFORM_ADMIN" ? "Empresas da plataforma" : "Area do aluno";
+  const title = "Gestao da plataforma";
   const subtitle =
-    primaryRole === "PLATFORM_ADMIN"
-      ? "O mobile reconhece o perfil da plataforma, mas a gestao multiempresa continua priorizada no painel web."
-      : "As funcoes do app do aluno entram nos proximos passos. Por enquanto, esta area centraliza o contexto da sua conta.";
+    "Esse perfil e o seu hub de controle: empresas cadastradas, cobranca mensal e ativacao ou bloqueio de acesso.";
 
   if (!isRoleHub) {
     return (
@@ -65,7 +64,7 @@ export default function ExploreScreen() {
           <View className="gap-5">
             <PlatformHeader
               title="Area complementar"
-              subtitle="Esta rota fica reservada para PLATFORM_ADMIN e USER no mobile, seguindo a regra definida para a navegacao por perfil."
+              subtitle="Esta rota fica reservada para PLATFORM_ADMIN no mobile, seguindo a regra definida para a navegacao por perfil."
               detail={user?.email ?? "Sessao autenticada"}
               onSignOut={handleLogout}
             />
@@ -78,9 +77,9 @@ export default function ExploreScreen() {
                 Esta area nao pertence ao seu perfil.
               </Text>
               <Text className="mt-2 text-sm leading-6 text-red-700">
-                ADMIN, DRIVER e COORDINATOR usam as areas operacionais do app.
-                Se esta tela foi aberta manualmente, o mobile manteve a regra do
-                web e bloqueou o conteudo.
+                ADMIN, DRIVER, COORDINATOR e USER usam as areas operacionais do
+                app. Se esta tela foi aberta manualmente, o mobile bloqueou o
+                conteudo para manter a navegacao por perfil.
               </Text>
               {roles.length > 0 && (
                 <Text className="mt-3 text-xs font-semibold uppercase tracking-[1.5px] text-red-600">
@@ -110,7 +109,7 @@ export default function ExploreScreen() {
               Perfil reconhecido
             </Text>
             <Text className="mt-2 text-[28px] font-bold leading-9 text-typography-950">
-              {primaryRole ?? "Perfil nao identificado"}
+              PLATFORM_ADMIN
             </Text>
             <Text className="mt-2 text-sm leading-6 text-typography-600">
               {roles.length > 0
@@ -119,33 +118,38 @@ export default function ExploreScreen() {
             </Text>
           </View>
 
-          {primaryRole === "PLATFORM_ADMIN" ? (
-            <>
-              <InfoCard
-                description="No web, este perfil entra pela area de Empresas. No mobile, essa gestao ainda nao ganhou telas dedicadas."
-                icon={Building2}
-                title="Gestao multiempresa"
-              />
-              <InfoCard
-                description="Enquanto isso, use o painel web para cadastro, operacao e configuracoes mais amplas da plataforma."
-                icon={Compass}
-                title="Melhor experiencia no web"
-              />
-            </>
-          ) : (
-            <>
-              <InfoCard
-                description="Rastreamento do transporte, presenca e notificacoes entram nos proximos passos do app do aluno."
-                icon={MapPinned}
-                title="Rastreamento"
-              />
-              <InfoCard
-                description="Fluxos como boleto, carteira digital e acompanhamento pessoal ficam concentrados aqui quando as proximas etapas forem liberadas."
-                icon={CreditCard}
-                title="Servicos do aluno"
-              />
-            </>
-          )}
+          <InfoCard
+            description="Aqui fica a visao central das empresas cadastradas na plataforma, com o ponto de entrada para acompanhar cada conta."
+            icon={Building2}
+            title="Empresas cadastradas"
+          />
+          <InfoCard
+            description="Os boletos mensais de cada empresa entram nesta area para voce acompanhar cobranca, vencimentos e situacao financeira."
+            icon={FileText}
+            title="Boletos mensais"
+          />
+          <InfoCard
+            description="Ativar, desativar e controlar o acesso das empresas tambem pertence a este perfil, como camada administrativa da plataforma."
+            icon={Power}
+            title="Controle de acesso"
+          />
+
+          <View className="rounded-[28px] border border-outline-200 bg-background-0 px-5 py-5">
+            <View className="flex-row items-start gap-4">
+              <View className="rounded-2xl bg-tertiary-50 p-3">
+                <LucideIcon color="#b45309" icon={ShieldCheck} size={20} />
+              </View>
+              <View className="flex-1">
+                <Text className="text-base font-semibold text-typography-950">
+                  Escopo do PLATFORM_ADMIN
+                </Text>
+                <Text className="mt-2 text-sm leading-6 text-typography-600">
+                  Esse usuario nao e operacional como ADMIN, DRIVER, COORDINATOR
+                  ou USER. Ele existe para a administracao geral do Unipass.
+                </Text>
+              </View>
+            </View>
+          </View>
 
           <View className="rounded-[28px] bg-background-0 px-5 py-5">
             <View className="flex-row items-center gap-3">
@@ -157,7 +161,7 @@ export default function ExploreScreen() {
             <View className="mt-3 flex-row items-center gap-3">
               <LucideIcon color="#475569" icon={Building2} size={18} />
               <Text className="text-sm leading-6 text-typography-700">
-                Empresa: {company?.name ?? "Nao vinculada"}
+                Escopo: {company?.name ?? "Plataforma inteira"}
               </Text>
             </View>
             <View className="mt-3 flex-row items-center gap-3">

@@ -2,9 +2,11 @@ import { LogisticTabBar } from "@/components/logistic-tab-bar";
 import { LucideIcon } from "@/components/ui/lucide-icon";
 import { useAuth } from "@/contexts/auth-context";
 import {
-  canManageCompany,
+  canViewCompanyProfileTab,
+  canViewCompanyTab,
   canViewDashboardTab,
   canViewLiveLocation,
+  getCompanyTabTitle,
   getPrimarySessionRole,
   shouldShowRoleHub,
 } from "@/services/auth";
@@ -15,6 +17,7 @@ import {
   CircleUser,
   Compass,
   FolderKanban,
+  GraduationCap,
   LayoutDashboard,
   MapPinned,
   NotebookPen,
@@ -26,17 +29,15 @@ const TAB_ACCENT_COLOR = "#FC7C3A";
 
 export default function TabLayout() {
   const { session } = useAuth();
+  const showCompanyProfileTab = canViewCompanyProfileTab(session);
   const showDashboardTab = canViewDashboardTab(session);
   const showLocationTab = canViewLiveLocation(session);
-  const showCompanyTab = canManageCompany(session);
+  const showCompanyTab = canViewCompanyTab(session);
   const showRoleHubTab = shouldShowRoleHub(session);
   const primaryRole = getPrimarySessionRole(session);
-  const roleHubTitle =
-    primaryRole === "PLATFORM_ADMIN"
-      ? "Empresas"
-      : primaryRole === "USER"
-        ? "Aluno"
-        : "Perfil";
+  const roleHubTitle = primaryRole === "PLATFORM_ADMIN" ? "Empresas" : "Perfil";
+  const companyTabTitle = getCompanyTabTitle(session);
+  const isCoordinator = primaryRole === "COORDINATOR";
 
   return (
     <Tabs
@@ -82,14 +83,35 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="empresa"
+        name="company"
         options={{
-          href: showCompanyTab ? undefined : null,
-          title: "Cadastros",
+          href: showCompanyProfileTab ? undefined : null,
+          title: "Empresa",
           tabBarIcon: ({ color, focused, size }) => (
             <LucideIcon
               color={color}
-              icon={focused ? FolderKanban : NotebookPen}
+              icon={focused ? Building2 : Building}
+              size={size}
+              strokeWidth={focused ? 2.4 : 2}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="empresa"
+        options={{
+          href: showCompanyTab ? undefined : null,
+          title: companyTabTitle,
+          tabBarIcon: ({ color, focused, size }) => (
+            <LucideIcon
+              color={color}
+              icon={
+                isCoordinator
+                  ? GraduationCap
+                  : focused
+                    ? FolderKanban
+                    : NotebookPen
+              }
               size={size}
               strokeWidth={focused ? 2.4 : 2}
             />

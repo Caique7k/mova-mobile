@@ -7,8 +7,10 @@ import { CatalogNavItem } from "@/components/cadastros/ui";
 import type { CatalogSectionKey } from "@/components/cadastros/types";
 import { useAuth } from "@/contexts/auth-context";
 import {
-  canManageCompany,
+  canViewCompanyTab,
   extractSessionRoles,
+  getPrimarySessionRole,
+  getVisibleCompanySections,
 } from "@/services/auth";
 import { getApiErrorMessage } from "@/services/api";
 import {
@@ -51,7 +53,7 @@ import {
   type UserStatusFilter,
   type UserStudentCandidate,
 } from "@/services/users";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -265,9 +267,21 @@ async function requestUserPage(
 export default function CompanyScreen() {
   const { session } = useAuth();
   const { width } = useWindowDimensions();
-  const canViewCompanyAdmin = canManageCompany(session);
+  const primaryRole = getPrimarySessionRole(session);
+  const canViewCompanyArea = canViewCompanyTab(session);
   const sessionRoles = extractSessionRoles(session);
   const isCompactRail = width < 900;
+  const visibleSectionKeys = useMemo(
+    () => getVisibleCompanySections(session),
+    [session],
+  );
+  const availableSections = useMemo(
+    () =>
+      catalogSections.filter((section) => visibleSectionKeys.includes(section.key)),
+    [visibleSectionKeys],
+  );
+  const companyScreenTitle =
+    primaryRole === "COORDINATOR" ? "Alunos" : "Cadastros";
   const companyEmailDomain =
     typeof session?.user.emailDomain === "string" && session.user.emailDomain.trim()
       ? session.user.emailDomain.trim().toLowerCase()
@@ -275,10 +289,24 @@ export default function CompanyScreen() {
         ? session.company.slug.trim().toLowerCase()
         : null;
 
-  const [activeSection, setActiveSection] = useState<CatalogSectionKey>("buses");
+  const [activeSection, setActiveSection] = useState<CatalogSectionKey>(
+    visibleSectionKeys[0] ?? "students",
+  );
 
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [feedbackTone, setFeedbackTone] = useState<FeedbackTone | null>(null);
+
+  useEffect(() => {
+    if (visibleSectionKeys.length === 0) {
+      return;
+    }
+
+    if (visibleSectionKeys.includes(activeSection)) {
+      return;
+    }
+
+    setActiveSection(visibleSectionKeys[0]);
+  }, [activeSection, visibleSectionKeys]);
 
   const [buses, setBuses] = useState<Bus[]>([]);
   const [busPage, setBusPage] = useState(1);
@@ -876,6 +904,10 @@ export default function CompanyScreen() {
   }
 
   function selectSection(nextSection: CatalogSectionKey) {
+    if (!visibleSectionKeys.includes(nextSection)) {
+      return;
+    }
+
     if (
       isSavingBus ||
       isSavingStudent ||
@@ -986,7 +1018,11 @@ export default function CompanyScreen() {
   }
 
   useEffect(() => {
-    if (!canViewCompanyAdmin || activeSection !== "buses") {
+    if (
+      !canViewCompanyArea ||
+      !visibleSectionKeys.includes("buses") ||
+      activeSection !== "buses"
+    ) {
       return;
     }
 
@@ -1022,10 +1058,21 @@ export default function CompanyScreen() {
     return () => {
       isMounted = false;
     };
-  }, [activeSection, appliedBusSearch, busPage, canViewCompanyAdmin, showFeedback]);
+  }, [
+    activeSection,
+    appliedBusSearch,
+    busPage,
+    canViewCompanyArea,
+    showFeedback,
+    visibleSectionKeys,
+  ]);
 
   useEffect(() => {
-    if (!canViewCompanyAdmin || activeSection !== "students") {
+    if (
+      !canViewCompanyArea ||
+      !visibleSectionKeys.includes("students") ||
+      activeSection !== "students"
+    ) {
       return;
     }
 
@@ -1064,14 +1111,19 @@ export default function CompanyScreen() {
   }, [
     activeSection,
     appliedStudentSearch,
-    canViewCompanyAdmin,
+    canViewCompanyArea,
     showFeedback,
     studentActiveFilter,
     studentPage,
+    visibleSectionKeys,
   ]);
 
   useEffect(() => {
-    if (!canViewCompanyAdmin || activeSection !== "unihub") {
+    if (
+      !canViewCompanyArea ||
+      !visibleSectionKeys.includes("unihub") ||
+      activeSection !== "unihub"
+    ) {
       return;
     }
 
@@ -1110,14 +1162,19 @@ export default function CompanyScreen() {
   }, [
     activeSection,
     appliedDeviceSearch,
-    canViewCompanyAdmin,
+    canViewCompanyArea,
     deviceActiveFilter,
     devicePage,
     showFeedback,
+    visibleSectionKeys,
   ]);
 
   useEffect(() => {
-    if (!canViewCompanyAdmin || activeSection !== "users") {
+    if (
+      !canViewCompanyArea ||
+      !visibleSectionKeys.includes("users") ||
+      activeSection !== "users"
+    ) {
       return;
     }
 
@@ -1161,20 +1218,25 @@ export default function CompanyScreen() {
   }, [
     activeSection,
     appliedUserSearch,
-    canViewCompanyAdmin,
+    canViewCompanyArea,
     showFeedback,
     userPage,
     userRoleFilter,
     userStatusFilter,
+    visibleSectionKeys,
   ]);
 
   useEffect(() => {
-    if (!canViewCompanyAdmin || activeSection !== "unihub") {
+    if (
+      !canViewCompanyArea ||
+      !visibleSectionKeys.includes("unihub") ||
+      activeSection !== "unihub"
+    ) {
       return;
     }
 
     void ensureDeviceBusOptions();
-  }, [activeSection, canViewCompanyAdmin, ensureDeviceBusOptions]);
+  }, [activeSection, canViewCompanyArea, ensureDeviceBusOptions, visibleSectionKeys]);
 
   async function refreshOrMoveBuses(
     nextPage = busPage,
@@ -1857,6 +1919,10 @@ export default function CompanyScreen() {
   }
 
   function renderActiveSection() {
+    if (!visibleSectionKeys.includes(activeSection)) {
+      return null;
+    }
+
     if (activeSection === "buses") {
       return (
         <BusesSection
@@ -2206,13 +2272,13 @@ export default function CompanyScreen() {
     );
   }
 
-  if (!canViewCompanyAdmin) {
+  if (!canViewCompanyArea) {
     return (
       <SafeAreaView className="flex-1 bg-background-50">
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
           <View className="gap-5">
             <Text className="text-[32px] font-bold leading-9 text-typography-950">
-              Cadastros
+              {companyScreenTitle}
             </Text>
 
             <View className="rounded-[28px] bg-red-50 px-5 py-5">
@@ -2220,12 +2286,12 @@ export default function CompanyScreen() {
                 Acesso restrito
               </Text>
               <Text className="mt-2 text-2xl font-bold text-red-900">
-                Esta area e exclusiva para ADMIN.
+                Esta area nao esta disponivel para o seu perfil.
               </Text>
               <Text className="mt-2 text-sm leading-6 text-red-700">
-                PLATFORM_ADMIN segue o fluxo da plataforma. DRIVER, COORDINATOR e
-                USER entram em telas operacionais ou de acompanhamento, sem acesso
-                ao hub de cadastros.
+                Hoje, apenas ADMIN, DRIVER e COORDINATOR veem essa aba no mobile.
+                USER acompanha a localizacao, e PLATFORM_ADMIN segue no fluxo da
+                plataforma.
               </Text>
               {sessionRoles.length > 0 ? (
                 <Text className="mt-3 text-xs font-semibold uppercase tracking-[1.5px] text-red-600">
@@ -2244,7 +2310,7 @@ export default function CompanyScreen() {
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
         <View className="gap-5">
           <Text className="text-[32px] font-bold leading-9 text-typography-950">
-            Cadastros
+            {companyScreenTitle}
           </Text>
 
           <View className="rounded-[32px] bg-background-0 p-4">
@@ -2256,7 +2322,7 @@ export default function CompanyScreen() {
                   contentContainerStyle={{ paddingRight: 8 }}
                 >
                   <View className="flex-row gap-3">
-                    {catalogSections.map((section) => (
+                    {availableSections.map((section) => (
                       <CatalogNavItem
                         key={section.key}
                         active={activeSection === section.key}
@@ -2276,7 +2342,7 @@ export default function CompanyScreen() {
               <View className="flex-row gap-4">
                 <View style={{ width: 250 }}>
                   <View className="gap-3">
-                    {catalogSections.map((section) => (
+                    {availableSections.map((section) => (
                       <CatalogNavItem
                         key={section.key}
                         active={activeSection === section.key}

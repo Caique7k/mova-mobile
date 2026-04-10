@@ -93,12 +93,15 @@ export function CatalogNavItem({
       style={{
         backgroundColor: active ? "#fff7ed" : "#f8fafc",
         borderColor: active ? "#FC7C3A" : "#e2e8f0",
-        minWidth: compact ? 220 : undefined,
+        height: compact ? 176 : 164,
+        width: compact ? 176 : undefined,
       }}
     >
-      <View className="flex-row items-start gap-3">
+      <View
+        className={compact ? "flex-1 justify-between" : "flex-1 justify-between"}
+      >
         <View
-          className="rounded-2xl p-3"
+          className="rounded-2xl p-3 self-start"
           style={{
             backgroundColor: active ? "rgba(252, 124, 58, 0.14)" : "#ffffff",
           }}
@@ -110,27 +113,37 @@ export function CatalogNavItem({
           />
         </View>
 
-        <View className="flex-1">
-          <Text className="text-base font-semibold text-typography-950">
+        <View className="mt-3 flex-1">
+          <Text
+            className="text-base font-semibold text-typography-950"
+            numberOfLines={1}
+          >
             {section.label}
           </Text>
-          <Text className="mt-1 text-sm leading-6 text-typography-600">
+          <Text
+            className="mt-1 text-sm leading-5 text-typography-600"
+            numberOfLines={compact ? 3 : 2}
+          >
             {section.description}
           </Text>
         </View>
-
-        {!compact ? (
-          <LucideIcon color={active ? "#FC7C3A" : "#94a3b8"} icon={ChevronRight} size={16} />
-        ) : null}
       </View>
 
-      <View
-        className="mt-4 self-start rounded-full px-3 py-2"
-        style={{ backgroundColor: statusStyles.backgroundColor }}
-      >
-        <Text className="text-xs font-semibold" style={{ color: statusStyles.color }}>
-          {section.status}
-        </Text>
+      <View className="mt-4 flex-row items-center justify-between">
+        <View
+          className="self-start rounded-full px-3 py-2"
+          style={{ backgroundColor: statusStyles.backgroundColor }}
+        >
+          <Text className="text-xs font-semibold" style={{ color: statusStyles.color }}>
+            {section.status}
+          </Text>
+        </View>
+
+        <LucideIcon
+          color={active ? "#FC7C3A" : "#94a3b8"}
+          icon={ChevronRight}
+          size={16}
+        />
       </View>
     </Pressable>
   );

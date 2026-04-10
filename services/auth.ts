@@ -49,12 +49,17 @@ export type UserRole =
   | "USER"
   | "COORDINATOR";
 
-const companyAdminRoles = ["ADMIN"] as const;
+export type CompanyCatalogSection = "buses" | "students" | "users" | "unihub";
+
+const companyTabRoles = ["ADMIN", "COORDINATOR", "DRIVER"] as const;
+const companyProfileTabRoles = ["ADMIN"] as const;
+const companyManagerRoles = ["ADMIN", "DRIVER"] as const;
 const dashboardTabRoles = ["ADMIN", "DRIVER"] as const;
 const liveLocationRoles = ["ADMIN", "COORDINATOR", "DRIVER", "USER"] as const;
 const locationFirstRoles = ["COORDINATOR", "USER"] as const;
 const operationsRoles = ["ADMIN", "COORDINATOR", "DRIVER"] as const;
 const platformAdminRoles = ["PLATFORM_ADMIN"] as const;
+const roleHubRoles = ["PLATFORM_ADMIN"] as const;
 const studentRoles = ["USER"] as const;
 const rolePriority: UserRole[] = [
   "PLATFORM_ADMIN",
@@ -63,6 +68,19 @@ const rolePriority: UserRole[] = [
   "DRIVER",
   "USER",
 ];
+const adminCompanyCatalogSections: CompanyCatalogSection[] = [
+  "buses",
+  "students",
+  "users",
+  "unihub",
+];
+const driverCompanyCatalogSections: CompanyCatalogSection[] = [
+  "buses",
+  "students",
+  "users",
+  "unihub",
+];
+const coordinatorCatalogSections: CompanyCatalogSection[] = ["students"];
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -194,8 +212,16 @@ export function canViewLiveLocation(session: AuthSession | null) {
   return hasSessionRole(session, liveLocationRoles, true);
 }
 
+export function canViewCompanyTab(session: AuthSession | null) {
+  return hasSessionRole(session, companyTabRoles, false);
+}
+
+export function canViewCompanyProfileTab(session: AuthSession | null) {
+  return hasSessionRole(session, companyProfileTabRoles, false);
+}
+
 export function canManageCompany(session: AuthSession | null) {
-  return hasSessionRole(session, companyAdminRoles, false);
+  return hasSessionRole(session, companyManagerRoles, false);
 }
 
 export function isPlatformAdmin(session: AuthSession | null) {
@@ -207,8 +233,29 @@ export function isStudentUser(session: AuthSession | null) {
 }
 
 export function shouldShowRoleHub(session: AuthSession | null) {
-  const primaryRole = getPrimarySessionRole(session);
-  return primaryRole === "PLATFORM_ADMIN" || primaryRole === "USER";
+  return hasSessionRole(session, roleHubRoles, false);
+}
+
+export function getVisibleCompanySections(session: AuthSession | null) {
+  if (hasSessionRole(session, ["ADMIN"], false)) {
+    return [...adminCompanyCatalogSections];
+  }
+
+  if (hasSessionRole(session, ["DRIVER"], false)) {
+    return [...driverCompanyCatalogSections];
+  }
+
+  if (hasSessionRole(session, ["COORDINATOR"], false)) {
+    return [...coordinatorCatalogSections];
+  }
+
+  return [];
+}
+
+export function getCompanyTabTitle(session: AuthSession | null) {
+  return getPrimarySessionRole(session) === "COORDINATOR"
+    ? "Alunos"
+    : "Cadastros";
 }
 
 export function canAccessDashboard(session: AuthSession | null) {
@@ -234,7 +281,7 @@ export function getDefaultAuthorizedRoute(session: AuthSession | null) {
     return "/(tabs)" as const;
   }
 
-  if (canManageCompany(session)) {
+  if (canViewCompanyTab(session)) {
     return "/(tabs)/empresa" as const;
   }
 
