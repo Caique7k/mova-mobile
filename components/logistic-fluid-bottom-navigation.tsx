@@ -8,7 +8,7 @@ import {
   type ImageSourcePropType,
   TouchableWithoutFeedback,
 } from "react-native";
-import ViewOverflow from "react-native-view-overflow";
+import ViewOverflow from "@/components/shims/react-native-view-overflow";
 
 const AnimatedViewOverflow = Animated.createAnimatedComponent(ViewOverflow);
 
